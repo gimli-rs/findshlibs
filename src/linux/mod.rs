@@ -49,6 +49,10 @@ impl<'a> SharedLibrary<'a> {
 }
 
 impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
+    fn name(&self) -> &CStr {
+        self.name
+    }
+
     fn each<F, C>(mut f: F)
         where F: FnMut(&Self) -> C,
               C: Into<shared_lib::IterationControl>
@@ -96,5 +100,12 @@ mod tests {
             }
         });
         assert_eq!(second_count, first_count - 1);
+    }
+
+    #[test]
+    fn get_name() {
+        linux::SharedLibrary::each(|shlib| {
+            let _ = shlib.name();
+        });
     }
 }
