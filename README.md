@@ -4,3 +4,7 @@
 
 Find the set of shared libraries loaded in the current process with a cross
 platform API.
+
+## Documentation
+
+[Documentation on docs.rs](https://docs.rs/findshlibs)
