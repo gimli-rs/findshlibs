@@ -1,0 +1,6 @@
+[package]
+name = "findshlibs"
+version = "0.1.0"
+authors = ["Nick Fitzgerald <fitzgen@gmail.com>"]
+
+[dependencies]
