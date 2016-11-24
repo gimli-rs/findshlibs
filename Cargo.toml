@@ -2,5 +2,11 @@
 name = "findshlibs"
 version = "0.1.0"
 authors = ["Nick Fitzgerald <fitzgen@gmail.com>"]
+description = "Find the set of shared libraries loaded in the current process with a cross platform API"
+license = "Apache-2.0/MIT"
+documentation = "https://docs.rs/findshlibs"
+keywords = ["dyld", "dylib", "shared", "library", "dl_iterate_phdr"]
+readme = "./README.md"
+repository = "https://github.com/fitzgen/findshlibs"
 
 [dependencies]
