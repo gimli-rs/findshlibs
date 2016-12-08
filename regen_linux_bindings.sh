@@ -15,6 +15,10 @@ BINDGEN=$1
 $BINDGEN \
     --raw-line '#![allow(non_snake_case)]' \
     --raw-line '#![allow(non_camel_case_types)]' \
+    --raw-line '#![allow(dead_code)]' \
     --whitelist-function dl_iterate_phdr \
+    --whitelist-type 'Elf\d*_.*' \
+    --whitelist-var 'PT_.*' \
+    --no-unstable-rust \
     ./src/linux/bindings.h \
     > ./src/linux/bindings.rs

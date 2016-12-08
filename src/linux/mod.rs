@@ -7,15 +7,66 @@ use std::slice;
 
 mod bindings;
 
+cfg_if! {
+    if #[cfg(target_pointer_width = "32")] {
+        type Phdr = bindings::Elf32_Phdr;
+    } else if #[cfg(target_pointer_width = "64")] {
+        type Phdr = bindings::Elf64_Phdr;
+    } else {
+        // Unsupported.
+    }
+}
+
+/// A mapped segment in an ELF file.
+#[derive(Debug)]
+pub struct Segment {
+    phdr: *const Phdr,
+}
+
+impl shared_lib::Segment for Segment {
+    fn name(&self) -> &CStr {
+        unsafe {
+            match self.phdr.as_ref().unwrap().p_type {
+                bindings::PT_NULL => CStr::from_ptr("NULL\0".as_ptr() as _),
+                bindings::PT_LOAD => CStr::from_ptr("LOAD\0".as_ptr() as _),
+                bindings::PT_DYNAMIC => CStr::from_ptr("DYNAMIC\0".as_ptr() as _),
+                bindings::PT_INTERP => CStr::from_ptr("INTERP\0".as_ptr() as _),
+                bindings::PT_NOTE => CStr::from_ptr("NOTE\0".as_ptr() as _),
+                bindings::PT_SHLIB => CStr::from_ptr("SHLI\0".as_ptr() as _),
+                bindings::PT_PHDR => CStr::from_ptr("PHDR\0".as_ptr() as _),
+                bindings::PT_TLS => CStr::from_ptr("TLS\0".as_ptr() as _),
+                bindings::PT_NUM => CStr::from_ptr("NUM\0".as_ptr() as _),
+                bindings::PT_LOOS => CStr::from_ptr("LOOS\0".as_ptr() as _),
+                bindings::PT_GNU_EH_FRAME => CStr::from_ptr("GNU_EH_FRAME\0".as_ptr() as _),
+                bindings::PT_GNU_STACK => CStr::from_ptr("GNU_STACK\0".as_ptr() as _),
+                bindings::PT_GNU_RELRO => CStr::from_ptr("GNU_RELRO\0".as_ptr() as _),
+                _ => CStr::from_ptr("(unknown segment type)\0".as_ptr() as _),
+            }
+        }
+    }
+}
+
+/// An iterator of mapped segments in a shared library.
+#[derive(Debug)]
+pub struct SegmentIter<'a> {
+    inner: ::std::slice::Iter<'a, Phdr>,
+}
+
+impl<'a> Iterator for SegmentIter<'a> {
+    type Item = Segment;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|phdr| Segment { phdr: phdr })
+    }
+}
+
 /// A shared library on Linux.
 #[derive(Debug, Clone, Copy)]
 pub struct SharedLibrary<'a> {
     size: usize,
     addr: *const u8,
     name: &'a CStr,
-    // TODO FITZGEN: 32 bit too?
-    headers: &'a [bindings::Elf64_Phdr],
-    // TODO FITZGEN: other fields?
+    headers: &'a [Phdr],
 }
 
 impl<'a> SharedLibrary<'a> {
@@ -49,8 +100,15 @@ impl<'a> SharedLibrary<'a> {
 }
 
 impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
+    type Segment = Segment;
+    type SegmentIter = SegmentIter<'a>;
+
     fn name(&self) -> &CStr {
         self.name
+    }
+
+    fn segments(&self) -> Self::SegmentIter {
+        SegmentIter { inner: self.headers.iter() }
     }
 
     fn each<F, C>(mut f: F)
@@ -66,7 +124,7 @@ impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
 #[cfg(test)]
 mod tests {
     use linux;
-    use shared_lib::{IterationControl, SharedLibrary};
+    use shared_lib::{IterationControl, SharedLibrary, Segment};
 
     #[test]
     fn have_libc() {
@@ -106,6 +164,21 @@ mod tests {
     fn get_name() {
         linux::SharedLibrary::each(|shlib| {
             let _ = shlib.name();
+        });
+    }
+
+    #[test]
+    fn have_load_segment() {
+        linux::SharedLibrary::each(|shlib| {
+            println!("shlib = {:?}", shlib.name());
+
+            let mut found_load = false;
+            for seg in shlib.segments() {
+                println!("    segment = {:?}", seg.name());
+
+                found_load |= seg.name().to_bytes() == b"LOAD";
+            }
+            assert!(found_load);
         });
     }
 }
