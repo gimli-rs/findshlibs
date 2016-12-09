@@ -18,15 +18,15 @@ pub mod macos;
 
 cfg_if!(
     if #[cfg(target_os = "linux")] {
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html) implementation for
-        /// the target operating system.
+/// The [`SharedLibrary` trait](./trait.SharedLibrary.html) implementation for
+/// the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
     } else if #[cfg(target_os = "macos")] {
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html) implementation for
-        /// the target operating system.
+/// The [`SharedLibrary` trait](./trait.SharedLibrary.html) implementation for
+/// the target operating system.
         pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
     } else {
-        // No implementation for this platform :(
+// No implementation for this platform :(
     }
 );
 
