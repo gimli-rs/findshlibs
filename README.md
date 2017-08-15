@@ -5,6 +5,11 @@
 Find the shared libraries loaded in the current process with a cross platform
 API.
 
+Current supported OSes:
+
+* Linux
+* OSX
+
 ## Documentation
 
-[Documentation on docs.rs](https://docs.rs/findshlibs)
+[📚 Documentation on docs.rs 📚](https://docs.rs/findshlibs)
