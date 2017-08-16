@@ -46,10 +46,10 @@ impl<'a> SegmentTrait for Segment<'a> {
     #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
         match *self {
-            Segment::Segment32(seg) => seg.vmaddr as usize,
+            Segment::Segment32(seg) => Svma(seg.vmaddr as usize as *const u8),
             Segment::Segment64(seg) => {
                 assert!(seg.vmaddr <= (usize::MAX as u64));
-                seg.vmaddr as usize
+                Svma(seg.vmaddr as usize as *const u8)
             }
         }
     }
