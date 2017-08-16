@@ -18,7 +18,7 @@
 //!         println!("{}", shlib.name().to_string_lossy());
 //!
 //!         for seg in shlib.segments() {
-//!             println!("    0x{:x}: segment {}",
+//!             println!("    {}: segment {}",
 //!                      seg.actual_virtual_memory_address(shlib),
 //!                      seg.name().to_string_lossy());
 //!         }
@@ -164,16 +164,24 @@ pub trait Segment: Sized + Debug {
     ///
     /// This is the virtual memory address without the bias applied. See the
     /// module documentation for details.
-    fn stated_virtual_memory_address(&self) -> usize;
+    fn stated_virtual_memory_address(&self) -> Svma;
+
+    /// Get the length of this segment in memory (in bytes).
+    fn len(&self) -> usize;
+
+    // Provided methods.
 
     /// Get this segment's actual virtual memory address.
     ///
     /// This is the virtual memory address with the bias applied. See the module
     /// documentation for details.
-    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> usize;
-
-    /// Get the length of this segment in memory (in bytes).
-    fn len(&self) -> usize;
+    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
+        let svma = self.stated_virtual_memory_address();
+        let bias = shlib.virtual_memory_bias();
+        Avma(unsafe {
+            svma.0.offset(bias.0)
+        })
+    }
 }
 
 /// A trait representing a shared library that is loaded in this process.
@@ -193,7 +201,7 @@ pub trait SharedLibrary: Sized + Debug {
     /// Get the bias of this shared library.
     ///
     /// See the module documentation for details.
-    fn virtual_memory_bias(&self) -> usize;
+    fn virtual_memory_bias(&self) -> Bias;
 
     /// Find all shared libraries in this process and invoke `f` with each one.
     fn each<F, C>(f: F)

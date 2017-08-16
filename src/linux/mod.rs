@@ -1,10 +1,11 @@
 //! Linux-specific implementation of the `SharedLibrary` trait.
 
-use super::IterationControl;
+use super::{Bias, IterationControl, Svma};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
 use std::ffi::CStr;
+use std::isize;
 use std::marker::PhantomData;
 use std::slice;
 
@@ -51,14 +52,10 @@ impl<'a> SegmentTrait for Segment<'a> {
         }
     }
 
-    fn stated_virtual_memory_address(&self) -> usize {
-        unsafe {
+    fn stated_virtual_memory_address(&self) -> Svma {
+        Svma(unsafe {
             (*self.phdr).p_vaddr as _
-        }
-    }
-
-    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> usize {
-        self.stated_virtual_memory_address() + shlib.virtual_memory_bias()
+        })
     }
 
     fn len(&self) -> usize {
@@ -136,8 +133,9 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         SegmentIter { inner: self.headers.iter() }
     }
 
-    fn virtual_memory_bias(&self) -> usize {
-        self.addr as usize
+    fn virtual_memory_bias(&self) -> Bias {
+        assert!((self.addr as usize) < (isize::MAX as usize));
+        Bias(self.addr as usize as isize)
     }
 
     fn each<F, C>(mut f: F)

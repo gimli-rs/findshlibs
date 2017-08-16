@@ -1,7 +1,7 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
 
-use super::IterationControl;
+use super::{Bias, IterationControl, Svma};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
@@ -42,7 +42,7 @@ impl<'a> SegmentTrait for Segment<'a> {
         }
     }
 
-    fn stated_virtual_memory_address(&self) -> usize {
+    fn stated_virtual_memory_address(&self) -> Svma {
         match *self {
             Segment::Segment32(seg) => seg.vmaddr as usize,
             Segment::Segment64(seg) => {
@@ -50,10 +50,6 @@ impl<'a> SegmentTrait for Segment<'a> {
                 seg.vmaddr as usize
             }
         }
-    }
-
-    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> usize {
-        shlib.virtual_memory_bias() + self.stated_virtual_memory_address()
     }
 
     fn len(&self) -> usize {
@@ -199,9 +195,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         }
     }
 
-    fn virtual_memory_bias(&self) -> usize {
-        assert!(self.slide >= 0);
-        self.slide as usize
+    fn virtual_memory_bias(&self) -> Bias {
+        Bias(self.slide)
     }
 
     fn each<F, C>(mut f: F)
