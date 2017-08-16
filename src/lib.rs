@@ -182,6 +182,22 @@ pub trait Segment: Sized + Debug {
             svma.0.offset(bias.0)
         })
     }
+
+    /// Does this segment contain the given address?
+    fn contains_svma(&self, address: Svma) -> bool {
+        let start = self.stated_virtual_memory_address().0 as usize;
+        let end = start + self.len();
+        let address = address.0 as usize;
+        start <= address && address < end
+    }
+
+    /// Does this segment contain the given address?
+    fn contains_avma(&self, shlib: &Self::SharedLibrary, address: Avma) -> bool {
+        let start = self.actual_virtual_memory_address(shlib).0 as usize;
+        let end = start + self.len();
+        let address = address.0 as usize;
+        start <= address && address < end
+    }
 }
 
 /// A trait representing a shared library that is loaded in this process.
