@@ -3,6 +3,9 @@
 //! Find the set of shared libraries currently loaded in this process with a
 //! cross platform API.
 //!
+//! The API entry point is the `TargetSharedLibrary` type and its
+//! `SharedLibrary::each` trait method implementation.
+//!
 //! ## Example
 //!
 //! Here is an example program that prints out each shared library that is
@@ -26,32 +29,41 @@
 //! }
 //! ```
 //!
+//! ## Supported OSes
+//!
+//! These are the OSes that `findshlibs` currently supports:
+//!
+//! * Linux
+//! * macOS
+//!
+//! Is your OS missing here? Send us a pull request!
+//!
 //! ## Addresses
 //!
 //! Shared libraries' addresses can be confusing. They are loaded somewhere in
-//! physical memory, but we generally don't care about their addresses in
-//! physical memory, because only the OS can see that address and we can only
-//! access them through their virtual memory address. But even "virtual memory
-//! address" is ambiguous because it isn't clear whether this is the address
-//! before or after the loader maps the object into memory and performs
-//! relocation.
+//! physical memory, but we generally don't care about physical memory
+//! addresses, because only the OS can see that address and in userspace we can
+//! only access memory through its virtual memory address. But even "virtual
+//! memory address" is ambiguous because it isn't clear whether this is the
+//! address before or after the loader maps the shared library into memory and
+//! performs relocation.
 //!
 //! To clarify between these different kinds of addresses, we borrow some
 //! terminology from [LUL][]:
 //!
-//! > * SVMA ("Stated Virtual Memory Address"): this is an address of a
+//! > * **SVMA** ("Stated Virtual Memory Address"): this is an address of a
 //! >   symbol (etc) as it is stated in the symbol table, or other
 //! >   metadata, of an object.  Such values are typically small and
 //! >   start from zero or thereabouts, unless the object has been
 //! >   prelinked.
 //! >
-//! > * AVMA ("Actual Virtual Memory Address"): this is the address of a
+//! > * **AVMA** ("Actual Virtual Memory Address"): this is the address of a
 //! >   symbol (etc) in a running process, that is, once the associated
 //! >   object has been mapped into a process.  Such values are typically
 //! >   much larger than SVMAs, since objects can get mapped arbitrarily
 //! >   far along the address space.
 //! >
-//! > * "Bias": the difference between AVMA and SVMA for a given symbol
+//! > * **"Bias"**: the difference between AVMA and SVMA for a given symbol
 //! >   (specifically, AVMA - SVMA).  The bias is always an integral
 //! >   number of pages.  Once we know the bias for a given object's
 //! >   text section (for example), we can compute the AVMAs of all of
