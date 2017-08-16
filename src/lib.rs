@@ -69,31 +69,88 @@ extern crate cfg_if;
 extern crate lazy_static;
 
 use std::ffi::CStr;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
+use std::ptr;
 
 cfg_if!(
     if #[cfg(target_os = "linux")] {
 
         pub mod linux;
 
-/// The [`SharedLibrary` trait](./trait.SharedLibrary.html) implementation for
-/// the target operating system.
+        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+        /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
 
     } else if #[cfg(target_os = "macos")] {
 
         pub mod macos;
 
-/// The [`SharedLibrary` trait](./trait.SharedLibrary.html) implementation for
-/// the target operating system.
+        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+        /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
 
     } else {
 
-// No implementation for this platform :(
+        // No implementation for this platform :(
 
     }
 );
+
+macro_rules! simple_newtypes {
+    (
+        $(
+            $(#[$attr:meta])*
+            $name:ident = $oldty:ty
+            where
+                default = $default:expr ,
+                display = $format:expr ;
+        )*
+    ) => {
+        $(
+            $(#[$attr])*
+            #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            pub struct $name(pub $oldty);
+
+            impl Default for $name {
+                fn default() -> Self {
+                    $name( $default )
+                }
+            }
+
+            impl fmt::Display for $name {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, $format, self.0)
+                }
+            }
+        )*
+    }
+}
+
+simple_newtypes! {
+    /// Stated virtual memory address.
+    ///
+    /// See the module documentation for details.
+    Svma = *const u8
+    where
+        default = ptr::null(),
+        display = "{:p}";
+
+    /// Actual virtual memory address.
+    ///
+    /// See the module documentation for details.
+    Avma = *const u8
+    where
+        default = ptr::null(),
+        display = "{:p}";
+
+    /// Virtual memory bias.
+    ///
+    /// See the module documentation for details.
+    Bias = isize
+    where
+        default = 0,
+        display = "{:#x}";
+}
 
 /// A mapped segment in a shared library.
 pub trait Segment: Sized + Debug {
