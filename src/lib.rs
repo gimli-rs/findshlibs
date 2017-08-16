@@ -118,6 +118,18 @@ macro_rules! simple_newtypes {
                 }
             }
 
+            impl From<$oldty> for $name {
+                fn from(x: $oldty) -> $name {
+                    $name(x)
+                }
+            }
+
+            impl From<$name> for $oldty {
+                fn from($name(x): $name) -> $oldty {
+                    x
+                }
+            }
+
             impl fmt::Display for $name {
                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                     write!(f, $format, self.0)
