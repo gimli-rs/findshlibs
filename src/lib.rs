@@ -112,7 +112,7 @@ macro_rules! simple_newtypes {
     (
         $(
             $(#[$attr:meta])*
-            $name:ident = $oldty:ty
+            type $name:ident = $oldty:ty
             where
                 default = $default:expr ,
                 display = $format:expr ;
@@ -155,7 +155,7 @@ simple_newtypes! {
     /// Stated virtual memory address.
     ///
     /// See the module documentation for details.
-    Svma = *const u8
+    type Svma = *const u8
     where
         default = ptr::null(),
         display = "{:p}";
@@ -163,7 +163,7 @@ simple_newtypes! {
     /// Actual virtual memory address.
     ///
     /// See the module documentation for details.
-    Avma = *const u8
+    type Avma = *const u8
     where
         default = ptr::null(),
         display = "{:p}";
@@ -171,7 +171,7 @@ simple_newtypes! {
     /// Virtual memory bias.
     ///
     /// See the module documentation for details.
-    Bias = isize
+    type Bias = isize
     where
         default = 0,
         display = "{:#x}";
