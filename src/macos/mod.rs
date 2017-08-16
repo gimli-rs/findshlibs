@@ -1,11 +1,15 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
 
-use shared_lib;
+use shared_lib::IterationControl;
+use shared_lib::Segment as SegmentTrait;
+use shared_lib::SharedLibrary as SharedLibraryTrait;
+
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::ptr;
 use std::sync::Mutex;
+use std::usize;
 
 mod bindings;
 
@@ -28,11 +32,37 @@ pub enum Segment<'a> {
     Segment64(&'a bindings::segment_command_64),
 }
 
-impl<'a> shared_lib::Segment for Segment<'a> {
+impl<'a> SegmentTrait for Segment<'a> {
+    type SharedLibrary = ::macos::SharedLibrary<'a>;
+
     fn name(&self) -> &CStr {
         match *self {
             Segment::Segment32(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
             Segment::Segment64(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
+        }
+    }
+
+    fn stated_virtual_memory_address(&self) -> usize {
+        match *self {
+            Segment::Segment32(seg) => seg.vmaddr as usize,
+            Segment::Segment64(seg) => {
+                assert!(seg.vmaddr <= (usize::MAX as u64));
+                seg.vmaddr as usize
+            }
+        }
+    }
+
+    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> usize {
+        shlib.virtual_memory_bias() + self.stated_virtual_memory_address()
+    }
+
+    fn len(&self) -> usize {
+        match *self {
+            Segment::Segment32(seg) => seg.vmsize as usize,
+            Segment::Segment64(seg) => {
+                assert!(seg.vmsize <= (usize::MAX as u64));
+                seg.vmsize as usize
+            }
         }
     }
 }
@@ -136,7 +166,7 @@ impl<'a> SharedLibrary<'a> {
     }
 }
 
-impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
+impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type Segment = Segment<'a>;
     type SegmentIter = SegmentIter<'a>;
 
@@ -169,9 +199,14 @@ impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
         }
     }
 
+    fn virtual_memory_bias(&self) -> usize {
+        assert!(self.slide >= 0);
+        self.slide as usize
+    }
+
     fn each<F, C>(mut f: F)
         where F: FnMut(&Self) -> C,
-              C: Into<shared_lib::IterationControl>
+              C: Into<IterationControl>
     {
         // Make sure we have exclusive access to dyld so that (hopefully) no one
         // else adds or removes shared libraries while we are iterating them.
@@ -196,8 +231,8 @@ impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
                 let shlib = SharedLibrary::new(header, slide, name);
 
                 match f(&shlib).into() {
-                    shared_lib::IterationControl::Break => break,
-                    shared_lib::IterationControl::Continue => continue,
+                    IterationControl::Break => break,
+                    IterationControl::Continue => continue,
                 }
             }
         }

@@ -1,8 +1,11 @@
 //! Linux-specific implementation of the `SharedLibrary` trait.
 
-use shared_lib;
+use shared_lib::IterationControl;
+use shared_lib::Segment as SegmentTrait;
+use shared_lib::SharedLibrary as SharedLibraryTrait;
 
 use std::ffi::CStr;
+use std::marker::PhantomData;
 use std::slice;
 
 mod bindings;
@@ -19,11 +22,14 @@ cfg_if! {
 
 /// A mapped segment in an ELF file.
 #[derive(Debug)]
-pub struct Segment {
+pub struct Segment<'a> {
     phdr: *const Phdr,
+    shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
 }
 
-impl shared_lib::Segment for Segment {
+impl<'a> SegmentTrait for Segment<'a> {
+    type SharedLibrary = ::linux::SharedLibrary<'a>;
+
     fn name(&self) -> &CStr {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
@@ -44,6 +50,22 @@ impl shared_lib::Segment for Segment {
             }
         }
     }
+
+    fn stated_virtual_memory_address(&self) -> usize {
+        unsafe {
+            (*self.phdr).p_vaddr as _
+        }
+    }
+
+    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> usize {
+        self.stated_virtual_memory_address() + shlib.virtual_memory_bias()
+    }
+
+    fn len(&self) -> usize {
+        unsafe {
+            (*self.phdr).p_memsz as _
+        }
+    }
 }
 
 /// An iterator of mapped segments in a shared library.
@@ -53,10 +75,13 @@ pub struct SegmentIter<'a> {
 }
 
 impl<'a> Iterator for SegmentIter<'a> {
-    type Item = Segment;
+    type Item = Segment<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|phdr| Segment { phdr: phdr })
+        self.inner.next().map(|phdr| Segment {
+            phdr: phdr,
+            shlib: PhantomData
+        })
     }
 }
 
@@ -84,7 +109,7 @@ impl<'a> SharedLibrary<'a> {
                                         f: *mut ::std::os::raw::c_void)
                                         -> ::std::os::raw::c_int
         where F: FnMut(&Self) -> C,
-              C: Into<shared_lib::IterationControl>
+              C: Into<IterationControl>
     {
         let f = f as *mut F;
         let f = f.as_mut().unwrap();
@@ -93,14 +118,14 @@ impl<'a> SharedLibrary<'a> {
         let shlib = SharedLibrary::new(info, size);
 
         match f(&shlib).into() {
-            shared_lib::IterationControl::Break => 1,
-            shared_lib::IterationControl::Continue => 0,
+            IterationControl::Break => 1,
+            IterationControl::Continue => 0,
         }
     }
 }
 
-impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
-    type Segment = Segment;
+impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
+    type Segment = Segment<'a>;
     type SegmentIter = SegmentIter<'a>;
 
     fn name(&self) -> &CStr {
@@ -111,9 +136,13 @@ impl<'a> shared_lib::SharedLibrary for SharedLibrary<'a> {
         SegmentIter { inner: self.headers.iter() }
     }
 
+    fn virtual_memory_bias(&self) -> usize {
+        self.addr as usize
+    }
+
     fn each<F, C>(mut f: F)
         where F: FnMut(&Self) -> C,
-              C: Into<shared_lib::IterationControl>
+              C: Into<IterationControl>
     {
         unsafe {
             bindings::dl_iterate_phdr(Some(Self::callback::<F, C>), &mut f as *mut _ as *mut _);
