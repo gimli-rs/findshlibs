@@ -35,6 +35,7 @@ pub enum Segment<'a> {
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::macos::SharedLibrary<'a>;
 
+    #[inline]
     fn name(&self) -> &CStr {
         match *self {
             Segment::Segment32(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
@@ -42,6 +43,7 @@ impl<'a> SegmentTrait for Segment<'a> {
         }
     }
 
+    #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
         match *self {
             Segment::Segment32(seg) => seg.vmaddr as usize,
@@ -52,6 +54,7 @@ impl<'a> SegmentTrait for Segment<'a> {
         }
     }
 
+    #[inline]
     fn len(&self) -> usize {
         match *self {
             Segment::Segment32(seg) => seg.vmsize as usize,
@@ -166,6 +169,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type Segment = Segment<'a>;
     type SegmentIter = SegmentIter<'a>;
 
+    #[inline]
     fn name(&self) -> &CStr {
         self.name
     }
@@ -195,6 +199,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         }
     }
 
+    #[inline]
     fn virtual_memory_bias(&self) -> Bias {
         Bias(self.slide)
     }

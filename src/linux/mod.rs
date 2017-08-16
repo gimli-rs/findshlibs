@@ -52,12 +52,14 @@ impl<'a> SegmentTrait for Segment<'a> {
         }
     }
 
+    #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
         Svma(unsafe {
             (*self.phdr).p_vaddr as _
         })
     }
 
+    #[inline]
     fn len(&self) -> usize {
         unsafe {
             (*self.phdr).p_memsz as _
@@ -74,6 +76,7 @@ pub struct SegmentIter<'a> {
 impl<'a> Iterator for SegmentIter<'a> {
     type Item = Segment<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|phdr| Segment {
             phdr: phdr,
@@ -125,19 +128,23 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type Segment = Segment<'a>;
     type SegmentIter = SegmentIter<'a>;
 
+    #[inline]
     fn name(&self) -> &CStr {
         self.name
     }
 
+    #[inline]
     fn segments(&self) -> Self::SegmentIter {
         SegmentIter { inner: self.headers.iter() }
     }
 
+    #[inline]
     fn virtual_memory_bias(&self) -> Bias {
         assert!((self.addr as usize) < (isize::MAX as usize));
         Bias(self.addr as usize as isize)
     }
 
+    #[inline]
     fn each<F, C>(mut f: F)
         where F: FnMut(&Self) -> C,
               C: Into<IterationControl>

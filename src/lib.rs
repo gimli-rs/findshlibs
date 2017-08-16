@@ -112,6 +112,7 @@ macro_rules! simple_newtypes {
             pub struct $name(pub $oldty);
 
             impl Default for $name {
+                #[inline]
                 fn default() -> Self {
                     $name( $default )
                 }
@@ -175,6 +176,7 @@ pub trait Segment: Sized + Debug {
     ///
     /// This is the virtual memory address with the bias applied. See the module
     /// documentation for details.
+    #[inline]
     fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
         let svma = self.stated_virtual_memory_address();
         let bias = shlib.virtual_memory_bias();
@@ -184,6 +186,7 @@ pub trait Segment: Sized + Debug {
     }
 
     /// Does this segment contain the given address?
+    #[inline]
     fn contains_svma(&self, address: Svma) -> bool {
         let start = self.stated_virtual_memory_address().0 as usize;
         let end = start + self.len();
@@ -192,6 +195,7 @@ pub trait Segment: Sized + Debug {
     }
 
     /// Does this segment contain the given address?
+    #[inline]
     fn contains_avma(&self, shlib: &Self::SharedLibrary, address: Avma) -> bool {
         let start = self.actual_virtual_memory_address(shlib).0 as usize;
         let end = start + self.len();
@@ -235,6 +239,7 @@ pub enum IterationControl {
 }
 
 impl From<()> for IterationControl {
+    #[inline]
     fn from(_: ()) -> Self {
         IterationControl::Continue
     }
