@@ -1,9 +1,9 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
 
-use shared_lib::IterationControl;
-use shared_lib::Segment as SegmentTrait;
-use shared_lib::SharedLibrary as SharedLibraryTrait;
+use super::IterationControl;
+use super::Segment as SegmentTrait;
+use super::SharedLibrary as SharedLibraryTrait;
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
@@ -242,7 +242,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 #[cfg(test)]
 mod tests {
     use macos;
-    use shared_lib::{IterationControl, SharedLibrary, Segment};
+    use super::super::{IterationControl, SharedLibrary, Segment};
 
     #[test]
     fn have_libdyld() {
