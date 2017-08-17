@@ -99,7 +99,12 @@ impl<'a> Iterator for SegmentIter<'a> {
                         unsafe { (self.commands as *const u8).offset(command_size) as *const _ };
                     return Some(Segment::Segment64(segment));
                 }
-                _ => continue,
+                _ => {
+                    // Some other kind of load command; skip to the next one.
+                    self.commands =
+                        unsafe { (self.commands as *const u8).offset(command_size) as *const _ };
+                    continue;
+                }
             }
         }
 
