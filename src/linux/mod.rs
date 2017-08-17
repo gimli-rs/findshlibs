@@ -1,6 +1,7 @@
 //! Linux-specific implementation of the `SharedLibrary` trait.
 
-use super::{Bias, IterationControl, Svma};
+use super::{Bias, IterationControl, NamedMemoryRange, Svma};
+use super::EhFrameHdr as EhFrameHdrTrait;
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
@@ -22,7 +23,40 @@ cfg_if! {
     } else if #[cfg(target_pointer_width = "64")] {
         type Phdr = bindings::Elf64_Phdr;
     } else {
-        // Unsupported.
+        compile_error!("Unsupported architecture; only 32 and 64 bit pointer \
+                        widths are supported");
+    }
+}
+
+/// A mapped `.eh_frame_hdr` section.
+#[derive(Debug)]
+pub struct EhFrameHdr<'a> {
+    svma: Svma,
+    len: usize,
+    shlib: PhantomData<&'a SharedLibrary<'a>>,
+}
+
+impl<'a> EhFrameHdrTrait for EhFrameHdr<'a> {
+    type Segment = Segment<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
+}
+
+impl<'a> NamedMemoryRange<SharedLibrary<'a>> for EhFrameHdr<'a> {
+    #[inline]
+    fn name(&self) -> &CStr {
+        unsafe {
+            CStr::from_ptr(".eh_frame_hdr\0".as_ptr() as _)
+        }
+    }
+
+    #[inline]
+    fn stated_virtual_memory_address(&self) -> Svma {
+        self.svma
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -30,12 +64,10 @@ cfg_if! {
 #[derive(Debug)]
 pub struct Segment<'a> {
     phdr: *const Phdr,
-    shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
+    shlib: PhantomData<&'a SharedLibrary<'a>>,
 }
 
-impl<'a> SegmentTrait for Segment<'a> {
-    type SharedLibrary = ::linux::SharedLibrary<'a>;
-
+impl<'a> NamedMemoryRange<SharedLibrary<'a>> for Segment<'a> {
     fn name(&self) -> &CStr {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
@@ -70,6 +102,11 @@ impl<'a> SegmentTrait for Segment<'a> {
             (*self.phdr).p_memsz as _
         }
     }
+}
+
+impl<'a> SegmentTrait for Segment<'a> {
+    type SharedLibrary = SharedLibrary<'a>;
+    type EhFrameHdr = EhFrameHdr<'a>;
 }
 
 /// An iterator of mapped segments in a shared library.
@@ -167,6 +204,7 @@ impl<'a> SharedLibrary<'a> {
 impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type Segment = Segment<'a>;
     type SegmentIter = SegmentIter<'a>;
+    type EhFrameHdr = EhFrameHdr<'a>;
 
     #[inline]
     fn name(&self) -> &CStr {
@@ -176,6 +214,25 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn segments(&self) -> Self::SegmentIter {
         SegmentIter { inner: self.headers.iter() }
+    }
+
+    #[inline]
+    fn eh_frame_hdr(&self) -> Option<Self::EhFrameHdr> {
+        for seg in self.segments() {
+            let phdr = unsafe {
+                seg.phdr.as_ref().unwrap()
+            };
+
+            if phdr.p_type == bindings::PT_GNU_EH_FRAME {
+                return Some(EhFrameHdr {
+                    svma: Svma(phdr.p_vaddr as _),
+                    len: phdr.p_memsz as _,
+                    shlib: PhantomData,
+                });
+            }
+        }
+
+        None
     }
 
     #[inline]
@@ -211,7 +268,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 #[cfg(test)]
 mod tests {
     use linux;
-    use super::super::{IterationControl, SharedLibrary, Segment};
+    use super::super::{IterationControl, NamedMemoryRange, SharedLibrary};
 
     #[test]
     fn have_libc() {

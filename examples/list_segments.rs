@@ -1,5 +1,5 @@
 extern crate findshlibs;
-use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
+use findshlibs::{NamedMemoryRange, SharedLibrary, TargetSharedLibrary};
 
 fn main() {
     TargetSharedLibrary::each(|shlib| {

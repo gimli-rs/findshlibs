@@ -1,12 +1,15 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
 
-use super::{Bias, IterationControl, Svma};
+use super::{Bias, IterationControl, NamedMemoryRange, Svma};
+use super::EhFrameHdr as EhFrameHdrTrait;
+use super::EhFrame as EhFrameTrait;
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
+use std::isize;
 use std::ptr;
 use std::sync::Mutex;
 use std::usize;
@@ -23,6 +26,141 @@ lazy_static! {
     pub static ref DYLD_LOCK: Mutex<()> = Mutex::new(());
 }
 
+/// TODO FITZGEN
+#[derive(Debug)]
+pub struct EhFrameHdr<'a>(Section<'a>);
+
+impl<'a> EhFrameHdrTrait for EhFrameHdr<'a> {
+    type Segment = Segment<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
+    type EhFrame = EhFrame<'a>;
+}
+
+impl<'a> NamedMemoryRange<SharedLibrary<'a>> for EhFrameHdr<'a> {
+    fn name(&self) -> &CStr {
+        self.0.name()
+    }
+
+    fn stated_virtual_memory_address(&self) -> Svma {
+        self.0.stated_virtual_memory_address()
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+/// TODO FITZGEN
+#[derive(Debug)]
+pub struct EhFrame<'a>(Section<'a>);
+
+impl<'a> EhFrameTrait for EhFrame<'a> {
+    type Segment = Segment<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
+    type EhFrameHdr = EhFrameHdr<'a>;
+}
+
+impl<'a> NamedMemoryRange<SharedLibrary<'a>> for EhFrame<'a> {
+    fn name(&self) -> &CStr {
+        self.0.name()
+    }
+
+    fn stated_virtual_memory_address(&self) -> Svma {
+        self.0.stated_virtual_memory_address()
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+/// A Mach-O section mapped into memory somewhere within a Mach-O segment.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum Section<'a> {
+    Section32(&'a bindings::section),
+    Section64(&'a bindings::section_64),
+}
+
+impl<'a> NamedMemoryRange<SharedLibrary<'a>> for Section<'a> {
+    #[inline]
+    fn name(&self) -> &CStr {
+        match *self {
+            Section::Section32(s) => unsafe { CStr::from_ptr(s.sectname.as_ptr()) },
+            Section::Section64(s) => unsafe { CStr::from_ptr(s.sectname.as_ptr()) },
+        }
+    }
+
+    #[inline]
+    fn stated_virtual_memory_address(&self) -> Svma {
+        match *self {
+            Section::Section32(s) => Svma(s.addr as usize as *const u8),
+            Section::Section64(s) => {
+                assert!(s.addr < usize::MAX as u64);
+                Svma(s.addr as usize as *const u8)
+            }
+        }
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        match *self {
+            Section::Section32(s) => s.size as usize,
+            Section::Section64(s) => s.size as usize,
+        }
+    }
+}
+
+/// An iterator over Mach-O sections.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum SectionIter<'a> {
+    SectionIter32 {
+        sections: *const bindings::section,
+        num_sections: usize,
+        segment: PhantomData<&'a Segment<'a>>,
+    },
+    SectionIter64 {
+        sections: *const bindings::section_64,
+        num_sections: usize,
+        segment: PhantomData<&'a Segment<'a>>,
+    }
+}
+
+impl<'a> Iterator for SectionIter<'a> {
+    type Item = Section<'a>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Section<'a>> {
+        match *self {
+            SectionIter::SectionIter32 { ref mut sections, ref mut num_sections, .. } => {
+                if *num_sections == 0 {
+                    return None;
+                }
+
+                *num_sections -= 1;
+                unsafe {
+                    let section = (*sections).as_ref().unwrap();
+                    *sections = (*sections).offset(1);
+                    Some(Section::Section32(section))
+                }
+            }
+            SectionIter::SectionIter64 { ref mut sections, ref mut num_sections, .. } => {
+                if *num_sections == 0 {
+                    return None;
+                }
+
+                *num_sections -= 1;
+                unsafe {
+                    let section = (*sections).as_ref().unwrap();
+                    *sections = (*sections).offset(1);
+                    Some(Section::Section64(section))
+                }
+            }
+        }
+    }
+}
+
 /// A Mach-O segment.
 #[derive(Debug)]
 pub enum Segment<'a> {
@@ -33,8 +171,12 @@ pub enum Segment<'a> {
 }
 
 impl<'a> SegmentTrait for Segment<'a> {
-    type SharedLibrary = ::macos::SharedLibrary<'a>;
+    type EhFrameHdr = EhFrameHdr<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
+    type EhFrame = EhFrame<'a>;
+}
 
+impl<'a> NamedMemoryRange<SharedLibrary<'a>> for Segment<'a> {
     #[inline]
     fn name(&self) -> &CStr {
         match *self {
@@ -61,6 +203,37 @@ impl<'a> SegmentTrait for Segment<'a> {
             Segment::Segment64(seg) => {
                 assert!(seg.vmsize <= (usize::MAX as u64));
                 seg.vmsize as usize
+            }
+        }
+    }
+}
+
+impl<'a> Segment<'a> {
+    /// TODO FITZGEN
+    #[inline]
+    pub fn sections(&self) -> SectionIter<'a> {
+        match *self {
+            Segment::Segment32(seg) => {
+                let sections = unsafe {
+                    (seg as *const bindings::segment_command).offset(1)
+                };
+                let sections = sections as *const bindings::section;
+                SectionIter::SectionIter32 {
+                    sections,
+                    num_sections: seg.nsects as usize,
+                    segment: PhantomData,
+                }
+            }
+            Segment::Segment64(seg) => {
+                let sections = unsafe {
+                    (seg as *const bindings::segment_command_64).offset(1)
+                };
+                let sections = sections as *const bindings::section_64;
+                SectionIter::SectionIter64 {
+                    sections,
+                    num_sections: seg.nsects as usize,
+                    segment: PhantomData,
+                }
             }
         }
     }
@@ -168,17 +341,56 @@ impl<'a> SharedLibrary<'a> {
             name: name,
         }
     }
+
+    /// TODO FITZGEN
+    pub fn sections(&self) -> AllSectionsIter<'a> {
+        AllSectionsIter {
+            segments: self.segments(),
+            sections: None,
+        }
+    }
+}
+
+/// An iterator over all the sections that are in all mapped segments in a
+/// Mach-O shared library.
+pub struct AllSectionsIter<'a> {
+    segments: SegmentIter<'a>,
+    sections: Option<SectionIter<'a>>,
+}
+
+impl<'a> Iterator for AllSectionsIter<'a> {
+    type Item = Section<'a>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Section<'a>> {
+        // AFAIK, there is no faster way to iterate all Mach-O sections, than to
+        // iterate Mach-O segments and then iterate over the sections in each
+        // segment.
+        loop {
+            if let Some(section) = self.sections.as_mut().and_then(|sections| sections.next()) {
+                return Some(section);
+            }
+
+            self.sections = self.segments.next().map(|seg| seg.sections());
+            if self.sections.is_none() {
+                return None;
+            }
+        }
+    }
 }
 
 impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type Segment = Segment<'a>;
     type SegmentIter = SegmentIter<'a>;
+    type EhFrameHdr = EhFrameHdr<'a>;
+    type EhFrame = EhFrame<'a>;
 
     #[inline]
     fn name(&self) -> &CStr {
         self.name
     }
 
+    #[inline]
     fn segments(&self) -> Self::SegmentIter {
         match self.header {
             MachHeader::Header32(header) => {
@@ -202,6 +414,24 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 }
             }
         }
+    }
+
+    #[inline]
+    fn eh_frame_hdr(&self) -> Option<Self::EhFrameHdr> {
+        const EH_FRAME_HDR_NAME: &'static [u8; 14] = b"__eh_frame_hdr";
+
+        self.sections()
+            .find(|s| s.name().to_bytes() == &EH_FRAME_HDR_NAME[..])
+            .map(|s| EhFrameHdr(s))
+    }
+
+    #[inline]
+    fn eh_frame(&self) -> Option<Self::EhFrame> {
+        const EH_FRAME_NAME: &'static [u8; 10] = b"__eh_frame";
+
+        self.sections()
+            .find(|s| s.name().to_bytes() == &EH_FRAME_NAME[..])
+            .map(|s| EhFrame(s))
     }
 
     #[inline]
@@ -247,7 +477,28 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 #[cfg(test)]
 mod tests {
     use macos;
-    use super::super::{IterationControl, SharedLibrary, Segment};
+    use super::super::{IterationControl, NamedMemoryRange, SharedLibrary};
+
+    #[test]
+    fn have_eh_frame_section() {
+        let mut found_eh_frame_in_all_sections = false;
+        let mut found_eh_frame_in_segment_sections = false;
+
+        macos::SharedLibrary::each(|shlib| {
+            for section in shlib.sections() {
+                found_eh_frame_in_all_sections |= section.name().to_string_lossy() == "__eh_frame";
+            }
+
+            for segment in shlib.segments() {
+                for section in segment.sections() {
+                    found_eh_frame_in_segment_sections |= section.name().to_string_lossy() == "__eh_frame";
+                }
+            }
+        });
+
+        assert!(found_eh_frame_in_all_sections);
+        assert!(found_eh_frame_in_segment_sections)
+    }
 
     #[test]
     fn have_libdyld() {

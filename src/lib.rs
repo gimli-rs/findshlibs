@@ -1,7 +1,7 @@
 //! # `findshlibs`
 //!
-//! Find the set of shared libraries currently loaded in this process with a
-//! cross platform API.
+//! Find the set of shared libraries (and current executable) currently mapped
+//! into this process with a cross platform API.
 //!
 //! The API entry point is the `TargetSharedLibrary` type and its
 //! `SharedLibrary::each` trait method implementation.
@@ -9,21 +9,46 @@
 //! ## Example
 //!
 //! Here is an example program that prints out each shared library that is
-//! loaded in the process and the addresses where each of its segments are
+//! loaded in the process, and the addresses where each of its segments are
 //! mapped into memory.
 //!
 //! ```
 //! extern crate findshlibs;
-//! use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
+//! use findshlibs::{NamedMemoryRange, SharedLibrary, TargetSharedLibrary};
 //!
 //! fn main() {
 //!     TargetSharedLibrary::each(|shlib| {
 //!         println!("{}", shlib.name().to_string_lossy());
 //!
-//!         for seg in shlib.segments() {
-//!             println!("    {}: segment {}",
-//!                      seg.actual_virtual_memory_address(shlib),
-//!                      seg.name().to_string_lossy());
+//!         for segment in shlib.segments() {
+//!             println!(
+//!                 "    {}: segment {}",
+//!                 segment.actual_virtual_memory_address(shlib),
+//!                 segment.name().to_string_lossy()
+//!             );
+//!         }
+//!     });
+//! }
+//! ```
+//!
+//! Here is an example program that finds the addresses where the `.eh_frame_hdr`
+//! exception handling sections are mapped into memory:
+//!
+//! ```
+//! extern crate findshlibs;
+//! use findshlibs::{NamedMemoryRange, SharedLibrary, TargetSharedLibrary};
+//!
+//! fn main() {
+//!     TargetSharedLibrary::each(|shlib| {
+//!         println!("{}", shlib.name().to_string_lossy());
+//!
+//!         if let Some(eh_frame_hdr) = shlib.eh_frame_hdr() {
+//!             println!(
+//!                 "    .eh_frame_hdr @ {}",
+//!                 eh_frame_hdr.actual_virtual_memory_address(shlib),
+//!             );
+//!         } else {
+//!             println!("    (no .eh_frame_hdr)");
 //!         }
 //!     });
 //! }
@@ -157,7 +182,7 @@ simple_newtypes! {
     type Svma = *const u8
     where
         default = ptr::null(),
-        display = "{:p}";
+        display = "{:#0p}";
 
     /// Actual virtual memory address.
     ///
@@ -165,7 +190,7 @@ simple_newtypes! {
     type Avma = *const u8
     where
         default = ptr::null(),
-        display = "{:p}";
+        display = "{:#0p}";
 
     /// Virtual memory bias.
     ///
@@ -176,37 +201,36 @@ simple_newtypes! {
         display = "{:#x}";
 }
 
-/// A mapped segment in a shared library.
-pub trait Segment: Sized + Debug {
-    /// The associated shared library type for this segment.
-    type SharedLibrary: SharedLibrary<Segment = Self>;
-
-    /// Get this segment's name.
+/// A named memory range.
+///
+/// This trait encapsulates the operations common to both segments and sections.
+pub trait NamedMemoryRange<Shlib: SharedLibrary>: Sized + Debug {
+    /// Get this memory range or section's name.
     fn name(&self) -> &CStr;
 
-    /// Get this segment's stated virtual address of this segment.
+    /// Get this memory range's stated virtual address of this memory range.
     ///
     /// This is the virtual memory address without the bias applied. See the
     /// module documentation for details.
     fn stated_virtual_memory_address(&self) -> Svma;
 
-    /// Get the length of this segment in memory (in bytes).
+    /// Get the length of this memory range in memory (in bytes).
     fn len(&self) -> usize;
 
     // Provided methods.
 
-    /// Get this segment's actual virtual memory address.
+    /// Get this section's actual virtual memory address.
     ///
     /// This is the virtual memory address with the bias applied. See the module
     /// documentation for details.
     #[inline]
-    fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
+    fn actual_virtual_memory_address(&self, shlib: &Shlib) -> Avma {
         let svma = self.stated_virtual_memory_address();
         let bias = shlib.virtual_memory_bias();
         Avma(unsafe { svma.0.offset(bias.0) })
     }
 
-    /// Does this segment contain the given address?
+    /// Does this section contain the given address?
     #[inline]
     fn contains_svma(&self, address: Svma) -> bool {
         let start = self.stated_virtual_memory_address().0 as usize;
@@ -215,9 +239,9 @@ pub trait Segment: Sized + Debug {
         start <= address && address < end
     }
 
-    /// Does this segment contain the given address?
+    /// Does this section contain the given address?
     #[inline]
-    fn contains_avma(&self, shlib: &Self::SharedLibrary, address: Avma) -> bool {
+    fn contains_avma(&self, shlib: &Shlib, address: Avma) -> bool {
         let start = self.actual_virtual_memory_address(shlib).0 as usize;
         let end = start + self.len();
         let address = address.0 as usize;
@@ -225,26 +249,110 @@ pub trait Segment: Sized + Debug {
     }
 }
 
+/// An `.eh_frame_hdr` section within a mapped segment.
+pub trait EhFrameHdr: NamedMemoryRange<<Self as EhFrameHdr>::SharedLibrary> {
+    /// The associated segment type for this `.eh_frame_hdr` section.
+    type Segment: Segment<EhFrameHdr = Self>;
+
+    /// The associated shared library type for this `.eh_frame_hdr` section.
+    type SharedLibrary: SharedLibrary<EhFrameHdr = Self>;
+
+    /// The associated `.eh_frame` section type for this section.
+    type EhFrame: EhFrame<EhFrameHdr = Self>;
+}
+
+/// An `.eh_frame` section within a mapped segment.
+pub trait EhFrame: NamedMemoryRange<<Self as EhFrame>::SharedLibrary> {
+    /// The associated segment type for this `.eh_frame_hdr` section.
+    type Segment: Segment<EhFrame = Self>;
+
+    /// The associated shared library type for this `.eh_frame_hdr` section.
+    type SharedLibrary: SharedLibrary<EhFrame = Self>;
+
+    /// The associated `.eh_frame_hdr` section type for this section.
+    type EhFrameHdr: EhFrameHdr<EhFrame = Self>;
+}
+
+/// A mapped segment in a shared library.
+pub trait Segment: NamedMemoryRange<<Self as Segment>::SharedLibrary> {
+    /// The associated shared library type for this segment.
+    type SharedLibrary: SharedLibrary<Segment = Self>;
+
+    /// The associated `.eh_frame_hdr` section type for this segment.
+    type EhFrameHdr: EhFrameHdr<Segment = Self>;
+
+    /// The associated `.eh_frame` section type for this segment.
+    type EhFrame: EhFrame<Segment = Self>;
+}
+
 /// A trait representing a shared library that is loaded in this process.
 pub trait SharedLibrary: Sized + Debug {
     /// The associated segment type for this shared library.
     type Segment: Segment<SharedLibrary = Self>;
 
-    /// An iterator over a shared library's segments.
-    type SegmentIter: Debug + Iterator<Item = Self::Segment>;
+    /// An iterator over this shared library's segments.
+    type SegmentIter: Iterator<Item = Self::Segment>;
+
+    /// The associated `.eh_frame_hdr` section type for this shared library.
+    type EhFrameHdr: EhFrameHdr<SharedLibrary = Self>;
+
+    /// The associated `.eh_frame` section type for this shared library.
+    type EhFrame: EhFrame<SharedLibrary = Self>;
 
     /// Get the name of this shared library.
     fn name(&self) -> &CStr;
-
-    /// Iterate over this shared library's segments.
-    fn segments(&self) -> Self::SegmentIter;
 
     /// Get the bias of this shared library.
     ///
     /// See the module documentation for details.
     fn virtual_memory_bias(&self) -> Bias;
 
-    /// Find all shared libraries in this process and invoke `f` with each one.
+    /// Get the segments that fall within this shared library.
+    fn segments(&self) -> Self::SegmentIter;
+
+    /// Get the mapped `.eh_frame_hdr` section for this shared library, if any
+    /// exists.
+    fn eh_frame_hdr(&self) -> Option<Self::EhFrameHdr>;
+
+    /// Get the mapped `.eh_frame` section for this shared library, if any
+    /// exists.
+    fn eh_frame(&self) -> Option<Self::EhFrame>;
+
+    /// Iterate over the shared libraries mapped into this process and invoke
+    /// `f` with each one.
+    ///
+    /// For example, to go through each shared library and do something with the
+    /// shared library containing a given address, we might write a function
+    /// like this:
+    ///
+    /// ```
+    /// use findshlibs::{Avma, NamedMemoryRange, SharedLibrary, TargetSharedLibrary};
+    /// use findshlibs::IterationControl::*;
+    ///
+    /// // Invoke `f` with the shared library containing `addr`, if any.
+    /// fn with_shlib_containing_addr<F>(addr: *const u8, mut f: F)
+    /// where
+    ///     F: FnMut(&TargetSharedLibrary)
+    /// {
+    ///     let addr = Avma(addr);
+    ///
+    ///     TargetSharedLibrary::each(|shlib| {
+    ///         for segment in shlib.segments() {
+    ///             if segment.contains_avma(shlib, addr) {
+    ///                 f(shlib);
+    ///                 return Break;
+    ///             }
+    ///         }
+    ///
+    ///         Continue
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// If you don't need to early break out of a `SharedLibrary::each` loop,
+    /// you don't need to worry about the `IterationControl` type, because of
+    /// the `impl From<()> for IterationControl`. Just omit explicitly returning
+    /// a value from the function, and iteration will always continue.
     fn each<F, C>(f: F)
     where
         F: FnMut(&Self) -> C,
@@ -252,6 +360,10 @@ pub trait SharedLibrary: Sized + Debug {
 }
 
 /// Control whether iteration over shared libraries should continue or stop.
+///
+/// If you don't need to early break out of a `SharedLibrary::each` loop, you
+/// don't need to worry about this type, because of the `impl From<()> for
+/// IterationControl`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IterationControl {
     /// Stop iteration.
@@ -275,10 +387,15 @@ mod tests {
     fn panic_in_each() {
         use std::panic;
 
-        match panic::catch_unwind(|| { TargetSharedLibrary::each(|_| panic!("uh oh")); }) {
+        match panic::catch_unwind(|| {
+            TargetSharedLibrary::each(|_| panic!("uh oh"));
+        }) {
             Ok(()) => panic!("Expected a panic, but didn't get one"),
             Err(any) => {
-                assert!(any.is::<&'static str>(), "panic value should be a &'static str");
+                assert!(
+                    any.is::<&'static str>(),
+                    "panic value should be a &'static str"
+                );
                 assert_eq!(*any.downcast_ref::<&'static str>().unwrap(), "uh oh");
             }
         }

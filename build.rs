@@ -35,6 +35,7 @@ fn generate_macos_bindings() {
         .whitelisted_type("mach_header.*")
         .whitelisted_type("load_command.*")
         .whitelisted_type("segment_command.*")
+        .whitelisted_type("section.*")
         .whitelisted_var("MH_MAGIC.*")
         .whitelisted_var("LC_SEGMENT.*")
         .generate()
