@@ -70,7 +70,6 @@
 //! >   its text symbols by adding the bias to their SVMAs.
 //!
 //! [LUL]: http://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
-
 #![deny(missing_docs)]
 
 #[macro_use]
@@ -204,9 +203,7 @@ pub trait Segment: Sized + Debug {
     fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
         let svma = self.stated_virtual_memory_address();
         let bias = shlib.virtual_memory_bias();
-        Avma(unsafe {
-            svma.0.offset(bias.0)
-        })
+        Avma(unsafe { svma.0.offset(bias.0) })
     }
 
     /// Does this segment contain the given address?
@@ -249,8 +246,9 @@ pub trait SharedLibrary: Sized + Debug {
 
     /// Find all shared libraries in this process and invoke `f` with each one.
     fn each<F, C>(f: F)
-        where F: FnMut(&Self) -> C,
-              C: Into<IterationControl>;
+    where
+        F: FnMut(&Self) -> C,
+        C: Into<IterationControl>;
 }
 
 /// Control whether iteration over shared libraries should continue or stop.
