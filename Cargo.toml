@@ -7,7 +7,7 @@ license = "Apache-2.0/MIT"
 name = "findshlibs"
 readme = "./README.md"
 repository = "https://github.com/fitzgen/findshlibs"
-version = "0.3.1"
+version = "0.3.2"
 [badges.coveralls]
 repository = "fitzgen/findshlibs"
 
