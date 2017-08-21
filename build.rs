@@ -23,7 +23,8 @@ fn generate_linux_bindings() {
         .expect("Should generate linux FFI bindings OK");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings.write_to_file(out_path.join("linux_bindings.rs"))
+    bindings
+        .write_to_file(out_path.join("linux_bindings.rs"))
         .expect("Should write linux_bindings.rs OK");
 }
 
@@ -40,6 +41,7 @@ fn generate_macos_bindings() {
         .expect("Should generate macOS FFI bindings OK");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings.write_to_file(out_path.join("macos_bindings.rs"))
+    bindings
+        .write_to_file(out_path.join("macos_bindings.rs"))
         .expect("Should write macos_bindings.rs OK");
 }

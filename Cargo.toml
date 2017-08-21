@@ -14,8 +14,9 @@ repository = "fitzgen/findshlibs"
 [badges.travis-ci]
 repository = "fitzgen/findshlibs"
 
-[build-dependencies]
-bindgen = "0.29.0"
+[build-dependencies.bindgen]
+default-features = false
+version = "0.29.0"
 
 [dependencies]
 cfg-if = "0.1.0"
