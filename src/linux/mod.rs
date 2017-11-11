@@ -5,13 +5,11 @@ use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
 use std::any::Any;
-use std::cell::RefCell;
 use std::ffi::CStr;
 use std::isize;
 use std::marker::PhantomData;
 use std::os::raw;
 use std::panic;
-use std::process;
 use std::slice;
 
 mod bindings;
@@ -99,13 +97,13 @@ pub struct SharedLibrary<'a> {
     headers: &'a [Phdr],
 }
 
-thread_local! {
-    static PANIC_VALUE: RefCell<Option<Box<Any + Send + 'static>>> = RefCell::new(None);
+struct IterState<F> {
+    f: F,
+    panic: Option<Box<Any + Send>>,
 }
 
 const CONTINUE: raw::c_int = 0;
 const BREAK: raw::c_int = 1;
-const PANIC: raw::c_int = 2;
 
 impl<'a> SharedLibrary<'a> {
     unsafe fn new(info: &'a bindings::dl_phdr_info, size: usize) -> Self {
@@ -119,46 +117,24 @@ impl<'a> SharedLibrary<'a> {
 
     unsafe extern "C" fn callback<F, C>(info: *mut bindings::dl_phdr_info,
                                         size: usize,
-                                        f: *mut raw::c_void)
+                                        state: *mut raw::c_void)
                                         -> raw::c_int
         where F: FnMut(&Self) -> C,
               C: Into<IterationControl>
     {
-        // XXX: We must be very careful to avoid unwinding back into C code
-        // here, which is UB. We attempt to shepherd the panic across the C
-        // frames, by stashing it in the `PANIC_VALUE` thread local, and then
-        // resuming the panic after we exit the `dl_iterate_phdr` call. If,
-        // however, we panic *again* while stashing the panic value, then we are
-        // left with no choice but to abort.
+        let state = &mut *(state as *mut IterState<F>);
 
         match panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            let f = f as *mut F;
-            let f = f.as_mut().unwrap();
-
             let info = info.as_ref().unwrap();
             let shlib = SharedLibrary::new(info, size);
 
-            f(&shlib).into()
+            (state.f)(&shlib).into()
         })) {
             Ok(IterationControl::Continue) => CONTINUE,
             Ok(IterationControl::Break) => BREAK,
             Err(panicked) => {
-                if let Err(_) = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-                    PANIC_VALUE.with(|p| {
-                        *p.borrow_mut() = Some(panicked);
-                    });
-                })) {
-                    // Try and print out a diagnostic message before aborting.
-                    let _ = panic::catch_unwind(|| {
-                        eprintln!(
-                            "findshlibs: aborting due to double-panic when unwinding a panic \
-                             across C frames"
-                        );
-                    });
-                    process::abort();
-                }
-
-                PANIC
+                state.panic = Some(panicked);
+                BREAK
             }
         }
     }
@@ -185,25 +161,21 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     }
 
     #[inline]
-    fn each<F, C>(mut f: F)
+    fn each<F, C>(f: F)
         where F: FnMut(&Self) -> C,
               C: Into<IterationControl>
     {
-        match unsafe {
-            bindings::dl_iterate_phdr(Some(Self::callback::<F, C>), &mut f as *mut _ as *mut _)
-        } {
-            r if r == BREAK || r == CONTINUE => return,
-            r if r == PANIC => {
-                panic::resume_unwind(PANIC_VALUE.with(|p| {
-                    p.borrow_mut()
-                        .take()
-                        .expect("dl_iterate_phdr returned PANIC, but we don't have a PANIC_VALUE")
-                }))
-            }
-            otherwise => unreachable!(
-                "dl_iterate_phdr returned some value we never return from our callback: {}",
-                otherwise
-            )
+        let mut state = IterState {
+            f: f,
+            panic: None,
+        };
+
+        unsafe {
+            bindings::dl_iterate_phdr(Some(Self::callback::<F, C>), &mut state as *mut _ as *mut _);
+        }
+
+        if let Some(panic) = state.panic {
+            panic::resume_unwind(panic);
         }
     }
 }
