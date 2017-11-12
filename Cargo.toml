@@ -16,11 +16,11 @@ repository = "fitzgen/findshlibs"
 
 [build-dependencies.bindgen]
 default-features = false
-version = "0.29.0"
+version = "0.31.3"
 
 [dependencies]
-cfg-if = "0.1.0"
-lazy_static = "0.2.2"
+cfg-if = "0.1.2"
+lazy_static = "0.2.9"
 
 [features]
 nightly = []
