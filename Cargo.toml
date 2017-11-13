@@ -6,13 +6,14 @@ keywords = ["dyld", "dylib", "shared", "library", "dl_iterate_phdr"]
 license = "Apache-2.0/MIT"
 name = "findshlibs"
 readme = "./README.md"
-repository = "https://github.com/fitzgen/findshlibs"
+repository = "https://github.com/gimli-rs/findshlibs"
 version = "0.3.3"
+
 [badges.coveralls]
-repository = "fitzgen/findshlibs"
+repository = "gimli-rs/findshlibs"
 
 [badges.travis-ci]
-repository = "fitzgen/findshlibs"
+repository = "gimli-rs/findshlibs"
 
 [build-dependencies.bindgen]
 default-features = false
