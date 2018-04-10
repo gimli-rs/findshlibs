@@ -55,10 +55,6 @@ impl<'a> SegmentTrait for Segment<'a> {
         }
     }
 
-    fn id(&self) -> Option<SharedLibraryId> {
-        None
-    }
-
     #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
         Svma(unsafe {
@@ -151,6 +147,11 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn name(&self) -> &CStr {
         self.name
+    }
+
+    #[inline]
+    fn id(&self) -> Option<SharedLibraryId> {
+        None
     }
 
     #[inline]
