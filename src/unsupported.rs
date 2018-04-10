@@ -62,11 +62,11 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn name(&self) -> &CStr {
-        unsafe { CStr::from_bytes_with_nul_unchecked(b"\x00") }
+        unreachable!()
     }
 
     fn id(&self) -> Option<SharedLibraryId> {
-        None
+        unreachable!()
     }
 
     fn segments(&self) -> Self::SegmentIter {
@@ -77,7 +77,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn virtual_memory_bias(&self) -> Bias {
-        Bias(0)
+        unreachable!()
     }
 
     fn each<F, C>(_f: F)
