@@ -36,6 +36,10 @@
 //! * Linux
 //! * macOS
 //!
+//! If a platform is not supported then a fallback implementation is used that
+//! does nothing.  To see if your platform does something at runtime the
+//! `TARGET_SUPPORTED` constant can be used.
+//!
 //! Is your OS missing here? Send us a pull request!
 //!
 //! ## Addresses
@@ -83,6 +87,8 @@ use std::ffi::CStr;
 use std::fmt::{self, Debug};
 use std::ptr;
 
+pub mod unsupported;
+
 cfg_if!(
     if #[cfg(target_os = "linux")] {
 
@@ -92,6 +98,9 @@ cfg_if!(
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
+
     } else if #[cfg(target_os = "macos")] {
 
         pub mod macos;
@@ -100,9 +109,17 @@ cfg_if!(
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
+
     } else {
 
-        // No implementation for this platform :(
+        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+        /// implementation for the target operating system.
+        pub type TargetSharedLibrary<'a> = unsupported::SharedLibrary<'a>;
+
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = false;
 
     }
 );

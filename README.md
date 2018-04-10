@@ -39,4 +39,8 @@ These are the OSes that `findshlibs` currently supports:
 * Linux
 * macOS
 
+If a platform is not supported then a fallback implementation is used that
+does nothing.  To see if your platform does something at runtime the
+`TARGET_SUPPORTED` constant can be used.
+
 Is your OS missing here? Send us a pull request!

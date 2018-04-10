@@ -8,8 +8,6 @@ fn main() {
         generate_linux_bindings();
     } else if cfg!(target_os = "macos") {
         generate_macos_bindings();
-    } else {
-        panic!("`findshlibs` does not support the target OS :(");
     }
 }
 
