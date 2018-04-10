@@ -271,7 +271,7 @@ pub trait SharedLibrary: Sized + Debug {
     fn name(&self) -> &CStr;
 
     /// Get the debug-id of this shared library if available.
-    fn id(&self) -> Option<SharedLibraryId> { None }
+    fn id(&self) -> Option<SharedLibraryId>;
 
     /// Iterate over this shared library's segments.
     fn segments(&self) -> Self::SegmentIter;

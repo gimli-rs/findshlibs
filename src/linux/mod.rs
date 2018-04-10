@@ -1,6 +1,6 @@
 //! Linux-specific implementation of the `SharedLibrary` trait.
 
-use super::{Bias, IterationControl, Svma};
+use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
@@ -53,6 +53,10 @@ impl<'a> SegmentTrait for Segment<'a> {
                 _ => CStr::from_ptr("(unknown segment type)\0".as_ptr() as _),
             }
         }
+    }
+
+    fn id(&self) -> Option<SharedLibraryId> {
+        None
     }
 
     #[inline]
