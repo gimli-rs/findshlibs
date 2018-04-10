@@ -141,7 +141,8 @@ impl<'a> MachHeader<'a> {
         MachType::from_header_ptr(header).and_then(|ty| {
             match ty {
                 MachType::Mach32 => header.as_ref().map(MachHeader::Header32),
-                MachType::Mach64 => (header as *const _).as_ref().map(MachHeader::Header64),
+                MachType::Mach64 => (header as *const bindings::mach_header_64)
+                    .as_ref().map(MachHeader::Header64),
             }
         })
     }
