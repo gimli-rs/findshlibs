@@ -1,7 +1,7 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
 
-use super::{Bias, IterationControl, Svma};
+use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
@@ -72,6 +72,26 @@ pub struct SegmentIter<'a> {
     phantom: PhantomData<&'a SharedLibrary<'a>>,
     commands: *const bindings::load_command,
     num_commands: usize,
+}
+
+impl<'a> SegmentIter<'a> {
+    fn find_uuid(&self) -> Option<[u8; 16]> {
+        let mut num_commands = self.num_commands;
+        let mut commands = self.commands;
+
+        while num_commands > 0 {
+            num_commands -= 1;
+            let this_command = unsafe { commands.as_ref().unwrap() };
+            let command_size = this_command.cmdsize as isize;
+            if let bindings::LC_UUID = this_command.cmd {
+                let uuid_cmd = commands as *const bindings::uuid_command;
+                return Some(unsafe { (*uuid_cmd).uuid });
+            }
+            commands = unsafe { (commands as *const u8).offset(command_size) as *const _ };
+        }
+
+        None
+    }
 }
 
 impl<'a> Iterator for SegmentIter<'a> {
@@ -178,6 +198,10 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn name(&self) -> &CStr {
         self.name
+    }
+
+    fn id(&self) -> Option<SharedLibraryId> {
+        self.segments().find_uuid().map(SharedLibraryId::Uuid)
     }
 
     fn segments(&self) -> Self::SegmentIter {
@@ -288,6 +312,13 @@ mod tests {
     fn get_name() {
         macos::SharedLibrary::each(|shlib| {
             let _ = shlib.name();
+        });
+    }
+
+    #[test]
+    fn get_id() {
+        macos::SharedLibrary::each(|shlib| {
+            assert!(shlib.id().is_some());
         });
     }
 
