@@ -34,9 +34,11 @@ fn generate_macos_bindings() {
         .whitelist_function("_dyld_.*")
         .whitelist_type("mach_header.*")
         .whitelist_type("load_command.*")
+        .whitelist_type("uuid_command.*")
         .whitelist_type("segment_command.*")
         .whitelist_var("MH_MAGIC.*")
         .whitelist_var("LC_SEGMENT.*")
+        .whitelist_var("LC_UUID.*")
         .generate()
         .expect("Should generate macOS FFI bindings OK");
 

@@ -1,6 +1,6 @@
 //! Linux-specific implementation of the `SharedLibrary` trait.
 
-use super::{Bias, IterationControl, Svma};
+use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
@@ -147,6 +147,11 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn name(&self) -> &CStr {
         self.name
+    }
+
+    #[inline]
+    fn id(&self) -> Option<SharedLibraryId> {
+        None
     }
 
     #[inline]

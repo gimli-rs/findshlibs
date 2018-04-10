@@ -225,6 +225,40 @@ pub trait Segment: Sized + Debug {
     }
 }
 
+/// Represents an ID for a shared library.
+#[derive(PartialEq, Eq, Hash)]
+pub enum SharedLibraryId {
+    /// A UUID (used on mac)
+    Uuid([u8; 16]),
+}
+
+impl fmt::Display for SharedLibraryId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SharedLibraryId::Uuid(ref bytes) => {
+                for (idx, byte) in bytes.iter().enumerate() {
+                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
+                        try!(write!(f, "-"));
+                    }
+                    try!(write!(f, "{:02x}", byte));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for SharedLibraryId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SharedLibraryId::Uuid(..) => {
+                write!(f, "Uuid(\"{}\")", self)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A trait representing a shared library that is loaded in this process.
 pub trait SharedLibrary: Sized + Debug {
     /// The associated segment type for this shared library.
@@ -235,6 +269,9 @@ pub trait SharedLibrary: Sized + Debug {
 
     /// Get the name of this shared library.
     fn name(&self) -> &CStr;
+
+    /// Get the debug-id of this shared library if available.
+    fn id(&self) -> Option<SharedLibraryId>;
 
     /// Iterate over this shared library's segments.
     fn segments(&self) -> Self::SegmentIter;
