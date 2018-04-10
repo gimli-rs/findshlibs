@@ -83,6 +83,8 @@ use std::ffi::CStr;
 use std::fmt::{self, Debug};
 use std::ptr;
 
+pub mod unsupported;
+
 cfg_if!(
     if #[cfg(target_os = "linux")] {
 
@@ -92,6 +94,9 @@ cfg_if!(
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
+
     } else if #[cfg(target_os = "macos")] {
 
         pub mod macos;
@@ -100,9 +105,17 @@ cfg_if!(
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
+
     } else {
 
-        // No implementation for this platform :(
+        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+        /// implementation for the target operating system.
+        pub type TargetSharedLibrary<'a> = unsupported::SharedLibrary<'a>;
+
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = false;
 
     }
 );
