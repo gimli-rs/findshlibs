@@ -17,11 +17,11 @@ repository = "gimli-rs/findshlibs"
 
 [build-dependencies.bindgen]
 default-features = false
-version = "0.31.3"
+version = "0.36.0"
 
 [dependencies]
 cfg-if = "0.1.2"
-lazy_static = "0.2.9"
+lazy_static = "1.0.0"
 
 [features]
 nightly = []
