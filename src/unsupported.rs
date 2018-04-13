@@ -1,9 +1,9 @@
 //! The fallback implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html) that does nothing.
 
-use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
+use super::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
@@ -48,7 +48,6 @@ impl<'a> Iterator for SegmentIter<'a> {
     }
 }
 
-
 /// The fallback implementation of the [SharedLibrary
 /// trait](../trait.SharedLibrary.html).
 #[derive(Debug)]
@@ -81,8 +80,9 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     }
 
     fn each<F, C>(_f: F)
-        where F: FnMut(&Self) -> C,
-              C: Into<IterationControl>
+    where
+        F: FnMut(&Self) -> C,
+        C: Into<IterationControl>,
     {
     }
 }

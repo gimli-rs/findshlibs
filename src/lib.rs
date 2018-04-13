@@ -304,9 +304,7 @@ pub trait SharedLibrary: Sized + Debug {
     fn avma_to_svma(&self, address: Avma) -> Svma {
         let bias = self.virtual_memory_bias();
         let reverse_bias = -bias.0;
-        Svma(unsafe {
-            address.0.offset(reverse_bias)
-        })
+        Svma(unsafe { address.0.offset(reverse_bias) })
     }
 
     /// Find all shared libraries in this process and invoke `f` with each one.
@@ -340,10 +338,15 @@ mod tests {
     fn panic_in_each() {
         use std::panic;
 
-        match panic::catch_unwind(|| { TargetSharedLibrary::each(|_| panic!("uh oh")); }) {
+        match panic::catch_unwind(|| {
+            TargetSharedLibrary::each(|_| panic!("uh oh"));
+        }) {
             Ok(()) => panic!("Expected a panic, but didn't get one"),
             Err(any) => {
-                assert!(any.is::<&'static str>(), "panic value should be a &'static str");
+                assert!(
+                    any.is::<&'static str>(),
+                    "panic value should be a &'static str"
+                );
                 assert_eq!(*any.downcast_ref::<&'static str>().unwrap(), "uh oh");
             }
         }
