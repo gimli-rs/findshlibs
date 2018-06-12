@@ -5,7 +5,7 @@ use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 use super::{Bias, IterationControl, SharedLibraryId, Svma};
 
-use std::ffi::CStr;
+use CStr;
 use std::marker::PhantomData;
 use std::usize;
 

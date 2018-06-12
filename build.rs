@@ -13,6 +13,8 @@ fn main() {
 
 fn generate_linux_bindings() {
     let bindings = bindgen::Builder::default()
+        .use_core()
+        .ctypes_prefix("ctypes")
         .header("./src/linux/bindings.h")
         .whitelist_function("dl_iterate_phdr")
         .whitelist_type(r#"Elf\d*.*"#)
@@ -28,6 +30,8 @@ fn generate_linux_bindings() {
 
 fn generate_macos_bindings() {
     let bindings = bindgen::Builder::default()
+        .use_core()
+        .ctypes_prefix("ctypes")
         .header("./src/macos/bindings.h")
         .whitelist_function("_dyld_.*")
         .whitelist_type("mach_header.*")
