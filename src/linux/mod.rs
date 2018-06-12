@@ -5,12 +5,18 @@ use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
 use std::any::Any;
-use std::ffi::CStr;
+use CStr;
 use std::isize;
 use std::marker::PhantomData;
-use std::os::raw;
 use std::panic;
 use std::slice;
+use ctypes;
+
+#[cfg(feature = "std")]
+use std::boxed::Box;
+
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
 
 mod bindings;
 
@@ -102,8 +108,8 @@ struct IterState<F> {
     panic: Option<Box<Any + Send>>,
 }
 
-const CONTINUE: raw::c_int = 0;
-const BREAK: raw::c_int = 1;
+const CONTINUE: ctypes::c_int = 0;
+const BREAK: ctypes::c_int = 1;
 
 impl<'a> SharedLibrary<'a> {
     unsafe fn new(info: &'a bindings::dl_phdr_info, size: usize) -> Self {
@@ -117,8 +123,8 @@ impl<'a> SharedLibrary<'a> {
 
     unsafe extern "C" fn callback<F, C>(info: *mut bindings::dl_phdr_info,
                                         size: usize,
-                                        state: *mut raw::c_void)
-                                        -> raw::c_int
+                                        state: *mut ctypes::c_void)
+                                        -> ctypes::c_int
         where F: FnMut(&Self) -> C,
               C: Into<IterationControl>
     {

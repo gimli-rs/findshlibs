@@ -75,6 +75,25 @@
 //!
 //! [LUL]: http://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
 #![deny(missing_docs)]
+#![cfg_attr(not(feature = "std"), feature(alloc))]
+#![cfg_attr(not(feature = "std"), feature(repr_transparent))]
+
+#![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "libc")]
+extern crate libc;
+
+#[cfg(not(any(feature = "std", feature = "libc")))]
+compile_error!("either the libc or the std feature must be enabled");
+
+#[cfg(not(feature = "std"))]
+extern crate core as std;
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
 
 #[macro_use]
 extern crate cfg_if;
@@ -83,9 +102,38 @@ extern crate cfg_if;
 #[macro_use]
 extern crate lazy_static;
 
-use std::ffi::CStr;
 use std::fmt::{self, Debug};
 use std::ptr;
+
+#[cfg(feature = "std")]
+mod ctypes {
+    pub use std::os::raw::*;
+}
+
+#[cfg(not(feature = "std"))]
+mod ctypes {
+    pub use libc::*;
+}
+
+#[cfg(feature = "std")]
+use std::ffi::CStr;
+
+#[cfg(not(feature = "std"))]
+#[derive(Debug)]
+#[repr(transparent)]
+/// Local CStr
+pub struct CStr(pub [ctypes::c_char]);
+
+#[cfg(not(feature = "std"))]
+impl CStr {
+    unsafe fn from_ptr<'a>(ptr: * const ctypes::c_char) -> &'a CStr {
+        let len = libc::strlen(ptr);
+        let ptr = ptr as * const ctypes::c_uchar;
+        let slice = std::slice::from_raw_parts(ptr, len as usize + 1);
+        &*(slice as * const [ctypes::c_uchar] as * const CStr)
+    }
+}
+
 
 pub mod unsupported;
 

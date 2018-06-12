@@ -5,7 +5,7 @@ use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
-use std::ffi::CStr;
+use CStr;
 use std::marker::PhantomData;
 use std::ptr;
 use std::sync::Mutex;
