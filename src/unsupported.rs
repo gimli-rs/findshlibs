@@ -2,12 +2,33 @@
 //! trait](../trait.SharedLibrary.html) that does nothing.
 
 use super::Segment as SegmentTrait;
+use super::Section as SectionTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 use super::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::usize;
+
+/// An unsupported command
+#[derive(Debug)]
+pub struct Section<'a> {
+    phantom: PhantomData<&'a SharedLibrary<'a>>,
+}
+
+impl<'a> SectionTrait for Section<'a> {
+    fn name(&self) -> &CStr {
+        unimplemented!()
+    }
+
+    fn stated_virtual_memory_address(&self) -> Svma {
+        unimplemented!()
+    }
+
+    fn len(&self) -> usize {
+        unimplemented!()
+    }
+}
 
 /// An unsupported segment
 #[derive(Debug)]
@@ -17,6 +38,12 @@ pub struct Segment<'a> {
 
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::unsupported::SharedLibrary<'a>;
+    type Section = ::unsupported::Section<'a>;
+    type SectionIter = ::unsupported::SectionIter<'a>;
+
+    fn sections(&self) -> SectionIter<'a> {
+        unimplemented!()
+    }
 
     #[inline]
     fn name(&self) -> &CStr {
@@ -31,6 +58,20 @@ impl<'a> SegmentTrait for Segment<'a> {
     #[inline]
     fn len(&self) -> usize {
         unreachable!()
+    }
+}
+
+/// A no-op iterator over commands.
+#[derive(Debug)]
+pub struct SectionIter<'a> {
+    phantom: PhantomData<&'a SharedLibrary<'a>>,
+}
+
+impl<'a> Iterator for SectionIter<'a> {
+    type Item = ::unsupported::Section<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }
 

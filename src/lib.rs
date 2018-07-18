@@ -198,6 +198,15 @@ pub trait Segment: Sized + Debug {
     /// The associated shared library type for this segment.
     type SharedLibrary: SharedLibrary<Segment = Self>;
 
+    /// Each segment may have 0 or more sections.
+    type Section: Section;
+
+    /// An iterator over a segment's commands.
+    type SectionIter: Debug + Iterator<Item = Self::Section>;
+
+    /// Iterate over this segment's commands.
+    fn sections(&self) -> Self::SectionIter;
+
     /// Get this segment's name.
     fn name(&self) -> &CStr;
 
@@ -239,6 +248,34 @@ pub trait Segment: Sized + Debug {
         let end = start + self.len();
         let address = address.0 as usize;
         start <= address && address < end
+    }
+}
+
+/// A segment can have multiple sections.
+pub trait Section : Sized + Debug {
+    /// Get this section's name.
+    fn name(&self) -> &CStr;
+
+    /// Get this section's stated virtual address.
+    /// (This slice of stated_virtual_memory_address + len should be contained within
+    /// the segment's stated_virtual_memory_address + len)
+    ///
+    /// This is the virtual memory address without the bias applied. See the
+    /// module documentation for details.
+    fn stated_virtual_memory_address(&self) -> Svma;
+
+    /// Get the length of this segment in memory (in bytes).
+    fn len(&self) -> usize;
+
+    /// Get this section's actual virtual memory address.
+    /// Bias parameter should be set to sharedLibrary.virtual_memory_bias()
+    ///
+    /// This is the virtual memory address with the bias applied. See the module
+    /// documentation for details.
+    #[inline]
+    fn actual_virtual_memory_address(&self, bias: Bias) -> Avma {
+        let svma = self.stated_virtual_memory_address();
+        Avma(unsafe { svma.0.offset(bias.0) })
     }
 }
 

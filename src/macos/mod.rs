@@ -3,6 +3,7 @@
 
 use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
+use super::Section as SectionTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
 use std::ffi::CStr;
@@ -32,8 +33,63 @@ pub enum Segment<'a> {
     Segment64(&'a bindings::segment_command_64),
 }
 
+/// A Mach-O section.
+#[derive(Debug,Clone)]
+pub enum Section<'a> {
+    /// A 32-bit Mach-O section.
+    Section32(&'a bindings::section),
+    /// A 64-bit Mach-O section.
+    Section64(&'a bindings::section_64),
+}
+
+impl<'a> SectionTrait for Section<'a> {
+    fn name(&self) -> &CStr {
+        unsafe {
+            match &self {
+                Section::Section32(sec) => { CStr::from_ptr(sec.sectname.as_ptr()) }
+                Section::Section64(sec) => { CStr::from_ptr(sec.sectname.as_ptr()) }
+            }
+        }
+    }
+
+    /// Get this section's stated virtual address.
+    ///
+    /// This is the virtual memory address without the bias applied. See the
+    /// module documentation for details.
+    fn stated_virtual_memory_address(&self) -> Svma {
+        match &self {
+            Section::Section32(sec) => {
+                assert!(sec.addr <= (usize::MAX as u32));
+                Svma(sec.addr as *const u8)
+            }
+            Section::Section64(sec) => {
+                assert!(sec.addr <= (usize::MAX as u64));
+                Svma(sec.addr as *const u8)
+            }
+        }
+    }
+
+    /// Get the length of this segment in memory (in bytes).
+    fn len(&self) -> usize {
+        match &self {
+            Section::Section32(sec) => {
+                assert!(sec.size <= (usize::MAX as u32));
+                sec.size as usize
+            }
+            Section::Section64(sec) => {
+                assert!(sec.size <= (usize::MAX as u64));
+                sec.size as usize
+            }
+        }
+    }
+}
+
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::macos::SharedLibrary<'a>;
+
+    type Section = ::macos::Section<'a>;
+
+    type SectionIter = ::macos::SectionIter<'a>;
 
     #[inline]
     fn name(&self) -> &CStr {
@@ -61,6 +117,32 @@ impl<'a> SegmentTrait for Segment<'a> {
             Segment::Segment64(seg) => {
                 assert!(seg.vmsize <= (usize::MAX as u64));
                 seg.vmsize as usize
+            }
+        }
+    }
+
+    #[inline]
+    fn sections(&self) -> Self::SectionIter {
+        match *self {
+            Segment::Segment32(seg) => {
+                let segment_start = seg as *const bindings::segment_command;
+                let section_start = unsafe { segment_start.offset(1) as *const bindings::section };
+                SectionIter {
+                    phantom: PhantomData,
+                    segment: Segment::Segment32(seg),
+                    num_sections: seg.nsects,
+                    section_start
+                }
+            }
+            Segment::Segment64(seg) => {
+                let segment_start = seg as *const bindings::segment_command_64;
+                let section_start = unsafe { segment_start.offset(1) as *const bindings::section };
+                SectionIter {
+                    phantom: PhantomData,
+                    segment: Segment::Segment64(seg),
+                    num_sections: seg.nsects,
+                    section_start
+                }
             }
         }
     }
@@ -129,6 +211,56 @@ impl<'a> Iterator for SegmentIter<'a> {
         }
 
         None
+    }
+}
+
+
+/// An iterator over Mach-O segments.
+#[derive(Debug)]
+pub struct SectionIter<'a> {
+    phantom: PhantomData<&'a SharedLibrary<'a>>,
+    segment: Segment<'a>,
+    num_sections: u32,
+    /// For 64 bit this is really a *const bindings::section64
+    section_start: *const bindings::section
+}
+
+impl<'a> Iterator for SectionIter<'a> {
+    type Item = Section<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.num_sections > 0 {
+            self.num_sections -= 1;
+            return Some(match self.segment {
+                Segment::Segment32(_seg) => {
+                    let section32 = unsafe {
+                        self.section_start.as_ref()
+                            .expect("Reading another 32 bit section failed.")
+                    };
+
+                    // Move iterator pointer on to point to next section:
+                    if self.num_sections > 0 {
+                        self.section_start = unsafe { self.section_start.offset(1) };
+                    }
+                    Section::Section32(section32)
+                }
+                Segment::Segment64(_seg) => {
+                    let section64 = unsafe {
+                        (self.section_start as *const bindings::section_64).as_ref()
+                            .expect("Reading another 64 bit section failed.")
+                    };
+
+                    // Move iterator pointer on to point to next section:
+                    if self.num_sections > 0 {
+                        let pointer64 = unsafe { (self.section_start as *const bindings::section_64).offset(1) };
+                        self.section_start = pointer64 as *const bindings::section;
+                    }
+                    Section::Section64(section64)
+                }
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -212,8 +344,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 let commands = unsafe { header.offset(1) as *const bindings::load_command };
                 SegmentIter {
                     phantom: PhantomData,
-                    commands: commands,
-                    num_commands: num_commands as usize,
+                    commands,
+                    num_commands: num_commands as usize
                 }
             }
             MachHeader::Header64(header) => {
@@ -222,8 +354,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 let commands = unsafe { header.offset(1) as *const bindings::load_command };
                 SegmentIter {
                     phantom: PhantomData,
-                    commands: commands,
-                    num_commands: num_commands as usize,
+                    commands,
+                    num_commands: num_commands as usize
                 }
             }
         }
@@ -272,7 +404,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 #[cfg(test)]
 mod tests {
     use macos;
-    use super::super::{IterationControl, SharedLibrary, Segment};
+    use super::super::{IterationControl, SharedLibrary, Segment, Section};
+
 
     #[test]
     fn have_libdyld() {
@@ -285,6 +418,53 @@ mod tests {
                 .is_some();
         });
         assert!(found_dyld);
+    }
+
+    #[test]
+    fn have_sections_pointing_to_valid_memory() {
+        let mut found_sections = false;
+        macos::SharedLibrary::each(|shlib| {
+            println!("testing lib {}", shlib.name().to_string_lossy());
+
+            if shlib.name().to_bytes() == b"/usr/lib/system/libxpc.dylib" {
+                println!("Skipping /usr/lib/system/libxpc.dylib as possibly malformed.");
+                return;
+            }
+
+            for seg in shlib.segments() {
+                assert!(seg.len() > 0);
+                println!("   testing seg {}", seg.name().to_string_lossy());
+
+                if seg.name().to_bytes() == b"__PAGEZERO" {
+                    // PAGEZERO is a 0-4Gb address area that we should
+                    // not be trying to read/write from.
+                    println!("skipping page zero segment");
+                    continue;
+                }
+
+                if seg.sections().count() > 0 {
+                    let start: *const u8 = seg.actual_virtual_memory_address(shlib).into();
+
+                    //If pointers are bad next two lines will likely segfault.
+                    let _first_byte = unsafe { *start };
+                    let _last_byte = unsafe { *(((start as usize)+ (seg.len() as usize)) as *const u8) };
+                }
+
+                for sect in seg.sections() {
+                    println!("      testing sec {}", sect.name().to_string_lossy());
+                    let s: macos::Section = sect;
+                    if s.len() > 0 {
+                        let start: *const u8 = s.actual_virtual_memory_address(shlib.virtual_memory_bias()).into();
+
+                        //If pointers are bad next two lines will likely segfault.
+                        let _first_byte = unsafe { *start };  //If pointers are bad this will likely segfault.
+                        let _last_byte = unsafe { *(((start as usize) + (s.len() as usize)) as *const u8) };
+                        found_sections = true;
+                    }
+                }
+            }
+        });
+        assert!(found_sections);
     }
 
     #[test]

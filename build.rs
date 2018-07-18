@@ -34,6 +34,7 @@ fn generate_macos_bindings() {
         .whitelist_type("load_command.*")
         .whitelist_type("uuid_command.*")
         .whitelist_type("segment_command.*")
+        .whitelist_type("section.*")
         .whitelist_var("MH_MAGIC.*")
         .whitelist_var("LC_SEGMENT.*")
         .whitelist_var("LC_UUID.*")
