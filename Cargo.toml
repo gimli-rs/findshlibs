@@ -7,7 +7,7 @@ license = "Apache-2.0/MIT"
 name = "findshlibs"
 readme = "./README.md"
 repository = "https://github.com/gimli-rs/findshlibs"
-version = "0.4.0"
+version = "0.4.1"
 
 [badges.coveralls]
 repository = "gimli-rs/findshlibs"

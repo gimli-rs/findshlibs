@@ -2,6 +2,7 @@
 
 use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
+use super::Section as SectionTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
 use std::any::Any;
@@ -17,22 +18,55 @@ mod bindings;
 cfg_if! {
     if #[cfg(target_pointer_width = "32")] {
         type Phdr = bindings::Elf32_Phdr;
+        //type SectionHdr = bindings::Elf32_Shdr;
     } else if #[cfg(target_pointer_width = "64")] {
         type Phdr = bindings::Elf64_Phdr;
+        //type SegmentHdr = bindings::Elf64_Shdr;
     } else {
         // Unsupported.
     }
 }
 
 /// A mapped segment in an ELF file.
+/// TODO why not this a Elf32_Shdr?
 #[derive(Debug)]
 pub struct Segment<'a> {
     phdr: *const Phdr,
     shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
 }
 
+/// A mapped section in an ELF file.
+#[derive(Debug)]
+pub struct Section<'a>
+{
+    //phdr: *const Phdr,
+    shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
+    //shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
+//    segment: &'a Segment<&'a ::linux::Segment<'a>>
+}
+
+impl<'a> SectionTrait for Section<'a> {
+    //type Segment = Segment<'a>;
+    fn name(&self) -> &CStr { unimplemented!() }
+    #[inline]
+    fn stated_virtual_memory_address(&self) -> Svma { unimplemented!()}
+
+    #[inline]
+    fn len(&self) -> usize {
+     unimplemented!()
+    }
+}
+
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::linux::SharedLibrary<'a>;
+
+    type Section = Section<'a>;
+
+    type SectionIter = SectionIter<'a>;
+
+    fn sections(&self) -> SectionIter<'a> {
+        unimplemented!();
+    }
 
     fn name(&self) -> &CStr {
         unsafe {
@@ -75,6 +109,20 @@ impl<'a> SegmentTrait for Segment<'a> {
 pub struct SegmentIter<'a> {
     inner: ::std::slice::Iter<'a, Phdr>,
 }
+
+/// An iterator of mapped sections in a segment.
+#[derive(Debug)]
+pub struct SectionIter<'a> {
+    inner: ::std::slice::Iter<'a, Phdr>,
+}
+
+impl<'a> Iterator for SectionIter<'a> {
+    type Item = Section<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
 
 impl<'a> Iterator for SegmentIter<'a> {
     type Item = Segment<'a>;
