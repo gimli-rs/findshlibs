@@ -8,17 +8,15 @@ fn main() {
         generate_linux_bindings();
     } else if cfg!(target_os = "macos") {
         generate_macos_bindings();
-    } else {
-        panic!("`findshlibs` does not support the target OS :(");
     }
 }
 
 fn generate_linux_bindings() {
     let bindings = bindgen::Builder::default()
         .header("./src/linux/bindings.h")
-        .whitelisted_function("dl_iterate_phdr")
-        .whitelisted_type(r#"Elf\d*.*"#)
-        .whitelisted_var("PT_.*")
+        .whitelist_function("dl_iterate_phdr")
+        .whitelist_type(r#"Elf\d*.*"#)
+        .whitelist_var("PT_.*")
         .generate()
         .expect("Should generate linux FFI bindings OK");
 
@@ -31,13 +29,15 @@ fn generate_linux_bindings() {
 fn generate_macos_bindings() {
     let bindings = bindgen::Builder::default()
         .header("./src/macos/bindings.h")
-        .whitelisted_function("_dyld_.*")
-        .whitelisted_type("mach_header.*")
-        .whitelisted_type("load_command.*")
-        .whitelisted_type("segment_command.*")
-        .whitelisted_type("section.*")
-        .whitelisted_var("MH_MAGIC.*")
-        .whitelisted_var("LC_SEGMENT.*")
+        .whitelist_function("_dyld_.*")
+        .whitelist_type("mach_header.*")
+        .whitelist_type("load_command.*")
+        .whitelist_type("uuid_command.*")
+        .whitelist_type("segment_command.*")
+        .whitelist_type("section.*")
+        .whitelist_var("MH_MAGIC.*")
+        .whitelist_var("LC_SEGMENT.*")
+        .whitelist_var("LC_UUID.*")
         .generate()
         .expect("Should generate macOS FFI bindings OK");
 
