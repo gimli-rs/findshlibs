@@ -1,6 +1,6 @@
 # `findshlibs`
 
-[![](http://meritbadge.herokuapp.com/findshlibs) ![](https://img.shields.io/crates/d/findshlibs.png)](https://crates.io/crates/findshlibs) [![Build Status](https://travis-ci.org/fitzgen/findshlibs.png?branch=master)](https://travis-ci.org/fitzgen/findshlibs) [![Coverage Status](https://coveralls.io/repos/github/fitzgen/findshlibs/badge.svg?branch=master)](https://coveralls.io/github/fitzgen/findshlibs?branch=master)
+[![](http://meritbadge.herokuapp.com/findshlibs) ![](https://img.shields.io/crates/d/findshlibs.png)](https://crates.io/crates/findshlibs) [![Build Status](https://travis-ci.org/gimli-rs/findshlibs.png?branch=master)](https://travis-ci.org/gimli-rs/findshlibs) [![Coverage Status](https://coveralls.io/repos/github/gimli-rs/findshlibs/badge.svg?branch=master)](https://coveralls.io/github/gimli-rs/findshlibs?branch=master)
 
 Find the shared libraries loaded in the current process with a cross platform
 API.
@@ -38,5 +38,9 @@ These are the OSes that `findshlibs` currently supports:
 
 * Linux
 * macOS
+
+If a platform is not supported then a fallback implementation is used that
+does nothing.  To see if your platform does something at runtime the
+`TARGET_SUPPORTED` constant can be used.
 
 Is your OS missing here? Send us a pull request!

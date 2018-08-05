@@ -1,7 +1,7 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
 
-use super::{Bias, IterationControl, NamedMemoryRange, Svma};
+use super::{Bias, IterationControl, NamedMemoryRange, Svma, SharedLibraryId};
 use super::EhFrameHdr as EhFrameHdrTrait;
 use super::EhFrame as EhFrameTrait;
 use super::Segment as SegmentTrait;
@@ -247,6 +247,26 @@ pub struct SegmentIter<'a> {
     num_commands: usize,
 }
 
+impl<'a> SegmentIter<'a> {
+    fn find_uuid(&self) -> Option<[u8; 16]> {
+        let mut num_commands = self.num_commands;
+        let mut commands = self.commands;
+
+        while num_commands > 0 {
+            num_commands -= 1;
+            let this_command = unsafe { commands.as_ref().unwrap() };
+            let command_size = this_command.cmdsize as isize;
+            if let bindings::LC_UUID = this_command.cmd {
+                let uuid_cmd = commands as *const bindings::uuid_command;
+                return Some(unsafe { (*uuid_cmd).uuid });
+            }
+            commands = unsafe { (commands as *const u8).offset(command_size) as *const _ };
+        }
+
+        None
+    }
+}
+
 impl<'a> Iterator for SegmentIter<'a> {
     type Item = Segment<'a>;
 
@@ -314,7 +334,8 @@ impl<'a> MachHeader<'a> {
         MachType::from_header_ptr(header).and_then(|ty| {
             match ty {
                 MachType::Mach32 => header.as_ref().map(MachHeader::Header32),
-                MachType::Mach64 => (header as *const _).as_ref().map(MachHeader::Header64),
+                MachType::Mach64 => (header as *const bindings::mach_header_64)
+                    .as_ref().map(MachHeader::Header64),
             }
         })
     }
@@ -388,6 +409,10 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn name(&self) -> &CStr {
         self.name
+    }
+
+    fn id(&self) -> Option<SharedLibraryId> {
+        self.segments().find_uuid().map(SharedLibraryId::Uuid)
     }
 
     #[inline]
@@ -538,6 +563,13 @@ mod tests {
     fn get_name() {
         macos::SharedLibrary::each(|shlib| {
             let _ = shlib.name();
+        });
+    }
+
+    #[test]
+    fn get_id() {
+        macos::SharedLibrary::each(|shlib| {
+            assert!(shlib.id().is_some());
         });
     }
 

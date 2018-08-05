@@ -61,6 +61,10 @@
 //! * Linux
 //! * macOS
 //!
+//! If a platform is not supported then a fallback implementation is used that
+//! does nothing.  To see if your platform does something at runtime the
+//! `TARGET_SUPPORTED` constant can be used.
+//!
 //! Is your OS missing here? Send us a pull request!
 //!
 //! ## Addresses
@@ -108,6 +112,8 @@ use std::ffi::CStr;
 use std::fmt::{self, Debug};
 use std::ptr;
 
+pub mod unsupported;
+
 cfg_if!(
     if #[cfg(target_os = "linux")] {
 
@@ -117,6 +123,9 @@ cfg_if!(
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
+
     } else if #[cfg(target_os = "macos")] {
 
         pub mod macos;
@@ -125,9 +134,17 @@ cfg_if!(
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
+
     } else {
 
-        // No implementation for this platform :(
+        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+        /// implementation for the target operating system.
+        pub type TargetSharedLibrary<'a> = unsupported::SharedLibrary<'a>;
+
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = false;
 
     }
 );
@@ -285,6 +302,40 @@ pub trait Segment: NamedMemoryRange<<Self as Segment>::SharedLibrary> {
     type EhFrame: EhFrame<Segment = Self>;
 }
 
+/// Represents an ID for a shared library.
+#[derive(PartialEq, Eq, Hash)]
+pub enum SharedLibraryId {
+    /// A UUID (used on mac)
+    Uuid([u8; 16]),
+}
+
+impl fmt::Display for SharedLibraryId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SharedLibraryId::Uuid(ref bytes) => {
+                for (idx, byte) in bytes.iter().enumerate() {
+                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
+                        try!(write!(f, "-"));
+                    }
+                    try!(write!(f, "{:02x}", byte));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for SharedLibraryId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SharedLibraryId::Uuid(..) => {
+                write!(f, "Uuid(\"{}\")", self)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A trait representing a shared library that is loaded in this process.
 pub trait SharedLibrary: Sized + Debug {
     /// The associated segment type for this shared library.
@@ -302,6 +353,9 @@ pub trait SharedLibrary: Sized + Debug {
     /// Get the name of this shared library.
     fn name(&self) -> &CStr;
 
+    /// Get the debug-id of this shared library if available.
+    fn id(&self) -> Option<SharedLibraryId>;
+
     /// Get the bias of this shared library.
     ///
     /// See the module documentation for details.
@@ -317,6 +371,15 @@ pub trait SharedLibrary: Sized + Debug {
     /// Get the mapped `.eh_frame` section for this shared library, if any
     /// exists.
     fn eh_frame(&self) -> Option<Self::EhFrame>;
+
+    /// Given an AVMA within this shared library, convert it back to an SVMA by
+    /// removing this shared library's bias.
+    #[inline]
+    fn avma_to_svma(&self, address: Avma) -> Svma {
+        let bias = self.virtual_memory_bias();
+        let reverse_bias = -bias.0;
+        Svma(unsafe { address.0.offset(reverse_bias) })
+    }
 
     /// Iterate over the shared libraries mapped into this process and invoke
     /// `f` with each one.
