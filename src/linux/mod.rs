@@ -91,9 +91,7 @@ impl<'a> fmt::Debug for SegmentIter<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ref phdr = self.inner.as_slice()[0];
 
-        write!(f, "SegmentIter {{ phdr: ")?;
-        fmt_debug_phdr(phdr, f)?;
-        write!(f, " }}")
+        f.debug_struct("SegmentIter").field("phdr", &DebugPhdr(phdr)).finish()
     }
 }
 
@@ -203,23 +201,34 @@ impl<'a> fmt::Debug for SharedLibrary<'a> {
         // last element must be formatted separately.
         let l = self.headers.len();
         self.headers[..(l - 1)].into_iter()
-            .map(|phdr| fmt_debug_phdr(phdr, f).and_then(|_| write!(f, ", ")))
+            .map(|phdr| write!(f, "{:?}, ", &DebugPhdr(phdr)))
             .collect::<fmt::Result>()?;
 
-        fmt_debug_phdr(&self.headers[l - 1], f)?;
+        write!(f, "{:?}", &DebugPhdr(&self.headers[l - 1]))?;
 
         write!(f, "] }}")
     }
 }
 
-// Helper function for implementing Debug for structures which contain Phdr.
-fn fmt_debug_phdr(phdr: &Phdr, f: &mut fmt::Formatter) -> fmt::Result {
-    // The layout is different for 32-bit vs 64-bit, but since the fields are the same,
-    // it shouldn't matter much.
-    write!(f, "Phdr {{ p_type: {:#X}, p_flags: {:?}, ", phdr.p_type, phdr.p_flags)?;
-    write!(f, "p_offset: {:#X}, p_vaddr: {:#X}, ", phdr.p_offset, phdr.p_vaddr)?;
-    write!(f, "p_paddr: {:#X}, p_filesz: {:?}, ", phdr.p_paddr, phdr.p_filesz)?;
-    write!(f, "p_memsz: {:?}, p_align: {:#X} }}", phdr.p_memsz, phdr.p_align)
+struct DebugPhdr<'a>(&'a Phdr);
+
+impl<'a> fmt::Debug for DebugPhdr<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let phdr = self.0;
+
+        // The layout is different for 32-bit vs 64-bit,
+        // but since the fields are the same, it shouldn't matter much.
+        f.debug_struct("Phdr")
+            .field("p_type", &phdr.p_type)
+            .field("p_flags", &phdr.p_flags)
+            .field("p_offset", &phdr.p_offset)
+            .field("p_vaddr", &phdr.p_vaddr)
+            .field("p_paddr", &phdr.p_paddr)
+            .field("p_filesz", &phdr.p_filesz)
+            .field("p_memsz", &phdr.p_memsz)
+            .field("p_align", &phdr.p_align)
+            .finish()
+    }
 }
 
 #[cfg(test)]
@@ -264,6 +273,7 @@ mod tests {
     #[test]
     fn get_name() {
         linux::SharedLibrary::each(|shlib| {
+            println!("{:?}", shlib);
             let _ = shlib.name();
         });
     }
