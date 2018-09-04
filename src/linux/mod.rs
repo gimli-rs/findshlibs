@@ -6,19 +6,19 @@ use super::SharedLibrary as SharedLibraryTrait;
 
 use std::any::Any;
 use std::ffi::CStr;
+use std::fmt;
 use std::isize;
 use std::marker::PhantomData;
-use std::os::raw;
 use std::panic;
 use std::slice;
 
-mod bindings;
+use libc;
 
 cfg_if! {
     if #[cfg(target_pointer_width = "32")] {
-        type Phdr = bindings::Elf32_Phdr;
+        type Phdr = libc::Elf32_Phdr;
     } else if #[cfg(target_pointer_width = "64")] {
-        type Phdr = bindings::Elf64_Phdr;
+        type Phdr = libc::Elf64_Phdr;
     } else {
         // Unsupported.
     }
@@ -37,19 +37,19 @@ impl<'a> SegmentTrait for Segment<'a> {
     fn name(&self) -> &CStr {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
-                bindings::PT_NULL => CStr::from_ptr("NULL\0".as_ptr() as _),
-                bindings::PT_LOAD => CStr::from_ptr("LOAD\0".as_ptr() as _),
-                bindings::PT_DYNAMIC => CStr::from_ptr("DYNAMIC\0".as_ptr() as _),
-                bindings::PT_INTERP => CStr::from_ptr("INTERP\0".as_ptr() as _),
-                bindings::PT_NOTE => CStr::from_ptr("NOTE\0".as_ptr() as _),
-                bindings::PT_SHLIB => CStr::from_ptr("SHLI\0".as_ptr() as _),
-                bindings::PT_PHDR => CStr::from_ptr("PHDR\0".as_ptr() as _),
-                bindings::PT_TLS => CStr::from_ptr("TLS\0".as_ptr() as _),
-                bindings::PT_NUM => CStr::from_ptr("NUM\0".as_ptr() as _),
-                bindings::PT_LOOS => CStr::from_ptr("LOOS\0".as_ptr() as _),
-                bindings::PT_GNU_EH_FRAME => CStr::from_ptr("GNU_EH_FRAME\0".as_ptr() as _),
-                bindings::PT_GNU_STACK => CStr::from_ptr("GNU_STACK\0".as_ptr() as _),
-                bindings::PT_GNU_RELRO => CStr::from_ptr("GNU_RELRO\0".as_ptr() as _),
+                libc::PT_NULL => CStr::from_ptr("NULL\0".as_ptr() as _),
+                libc::PT_LOAD => CStr::from_ptr("LOAD\0".as_ptr() as _),
+                libc::PT_DYNAMIC => CStr::from_ptr("DYNAMIC\0".as_ptr() as _),
+                libc::PT_INTERP => CStr::from_ptr("INTERP\0".as_ptr() as _),
+                libc::PT_NOTE => CStr::from_ptr("NOTE\0".as_ptr() as _),
+                libc::PT_SHLIB => CStr::from_ptr("SHLI\0".as_ptr() as _),
+                libc::PT_PHDR => CStr::from_ptr("PHDR\0".as_ptr() as _),
+                libc::PT_TLS => CStr::from_ptr("TLS\0".as_ptr() as _),
+                libc::PT_NUM => CStr::from_ptr("NUM\0".as_ptr() as _),
+                libc::PT_LOOS => CStr::from_ptr("LOOS\0".as_ptr() as _),
+                libc::PT_GNU_EH_FRAME => CStr::from_ptr("GNU_EH_FRAME\0".as_ptr() as _),
+                libc::PT_GNU_STACK => CStr::from_ptr("GNU_STACK\0".as_ptr() as _),
+                libc::PT_GNU_RELRO => CStr::from_ptr("GNU_RELRO\0".as_ptr() as _),
                 _ => CStr::from_ptr("(unknown segment type)\0".as_ptr() as _),
             }
         }
@@ -71,7 +71,6 @@ impl<'a> SegmentTrait for Segment<'a> {
 }
 
 /// An iterator of mapped segments in a shared library.
-#[derive(Debug)]
 pub struct SegmentIter<'a> {
     inner: ::std::slice::Iter<'a, Phdr>,
 }
@@ -88,8 +87,16 @@ impl<'a> Iterator for SegmentIter<'a> {
     }
 }
 
+impl<'a> fmt::Debug for SegmentIter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ref phdr = self.inner.as_slice()[0];
+
+        f.debug_struct("SegmentIter").field("phdr", &DebugPhdr(phdr)).finish()
+    }
+}
+
 /// A shared library on Linux.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct SharedLibrary<'a> {
     size: usize,
     addr: *const u8,
@@ -102,11 +109,11 @@ struct IterState<F> {
     panic: Option<Box<Any + Send>>,
 }
 
-const CONTINUE: raw::c_int = 0;
-const BREAK: raw::c_int = 1;
+const CONTINUE: libc::c_int = 0;
+const BREAK: libc::c_int = 1;
 
 impl<'a> SharedLibrary<'a> {
-    unsafe fn new(info: &'a bindings::dl_phdr_info, size: usize) -> Self {
+    unsafe fn new(info: &'a libc::dl_phdr_info, size: usize) -> Self {
         SharedLibrary {
             size: size,
             addr: info.dlpi_addr as usize as *const _,
@@ -115,10 +122,10 @@ impl<'a> SharedLibrary<'a> {
         }
     }
 
-    unsafe extern "C" fn callback<F, C>(info: *mut bindings::dl_phdr_info,
+    unsafe extern "C" fn callback<F, C>(info: *mut libc::dl_phdr_info,
                                         size: usize,
-                                        state: *mut raw::c_void)
-                                        -> raw::c_int
+                                        state: *mut libc::c_void)
+                                        -> libc::c_int
         where F: FnMut(&Self) -> C,
               C: Into<IterationControl>
     {
@@ -176,12 +183,51 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         };
 
         unsafe {
-            bindings::dl_iterate_phdr(Some(Self::callback::<F, C>), &mut state as *mut _ as *mut _);
+            libc::dl_iterate_phdr(Some(Self::callback::<F, C>), &mut state as *mut _ as *mut _);
         }
 
         if let Some(panic) = state.panic {
             panic::resume_unwind(panic);
         }
+    }
+}
+
+impl<'a> fmt::Debug for SharedLibrary<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SharedLibrary {{ size: {:?}, addr: {:?}, ", self.size, self.addr)?;
+        write!(f, "name: {:?}, headers: [",  self.name)?;
+
+        // Debug does not usually have a trailing comma in the list,
+        // last element must be formatted separately.
+        let l = self.headers.len();
+        self.headers[..(l - 1)].into_iter()
+            .map(|phdr| write!(f, "{:?}, ", &DebugPhdr(phdr)))
+            .collect::<fmt::Result>()?;
+
+        write!(f, "{:?}", &DebugPhdr(&self.headers[l - 1]))?;
+
+        write!(f, "] }}")
+    }
+}
+
+struct DebugPhdr<'a>(&'a Phdr);
+
+impl<'a> fmt::Debug for DebugPhdr<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let phdr = self.0;
+
+        // The layout is different for 32-bit vs 64-bit,
+        // but since the fields are the same, it shouldn't matter much.
+        f.debug_struct("Phdr")
+            .field("p_type", &phdr.p_type)
+            .field("p_flags", &phdr.p_flags)
+            .field("p_offset", &phdr.p_offset)
+            .field("p_vaddr", &phdr.p_vaddr)
+            .field("p_paddr", &phdr.p_paddr)
+            .field("p_filesz", &phdr.p_filesz)
+            .field("p_memsz", &phdr.p_memsz)
+            .field("p_align", &phdr.p_align)
+            .finish()
     }
 }
 
@@ -227,6 +273,7 @@ mod tests {
     #[test]
     fn get_name() {
         linux::SharedLibrary::each(|shlib| {
+            println!("{:?}", shlib);
             let _ = shlib.name();
         });
     }

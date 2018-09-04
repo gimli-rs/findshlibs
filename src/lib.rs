@@ -83,6 +83,9 @@ extern crate cfg_if;
 #[macro_use]
 extern crate lazy_static;
 
+#[cfg(target_os = "linux")]
+extern crate libc;
+
 use std::ffi::CStr;
 use std::fmt::{self, Debug};
 use std::ptr;
