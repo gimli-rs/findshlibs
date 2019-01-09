@@ -59,11 +59,13 @@ impl<'a> SegmentTrait for Segment<'a> {
 
     #[inline]
     fn is_code(&self) -> bool {
-        let hdr = self.phdr.as_ref().unwrap();
-        match hdr.p_type {
-            // 0x1 is PT_X for executable
-            libc::PT_LOAD => (hdr.p_flags & 0x1) != 0,
-            _ => false,
+        unsafe {
+            let hdr = self.phdr.as_ref().unwrap();
+            match hdr.p_type {
+                // 0x1 is PT_X for executable
+                libc::PT_LOAD => (hdr.p_flags & 0x1) != 0,
+                _ => false,
+            }
         }
     }
 
