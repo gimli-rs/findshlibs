@@ -14,6 +14,8 @@ use std::slice;
 
 use libc;
 
+
+
 cfg_if! {
     if #[cfg(target_pointer_width = "32")] {
         type Phdr = libc::Elf32_Phdr;
@@ -52,6 +54,16 @@ impl<'a> SegmentTrait for Segment<'a> {
                 libc::PT_GNU_RELRO => CStr::from_ptr("GNU_RELRO\0".as_ptr() as _),
                 _ => CStr::from_ptr("(unknown segment type)\0".as_ptr() as _),
             }
+        }
+    }
+
+    #[inline]
+    fn is_code(&self) -> bool {
+        let hdr = self.phdr.as_ref().unwrap();
+        match hdr.p_type {
+            // 0x1 is PT_X for executable
+            libc::PT_LOAD => (hdr.p_flags & 0x1) != 0,
+            _ => false,
         }
     }
 

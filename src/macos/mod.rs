@@ -44,6 +44,11 @@ impl<'a> SegmentTrait for Segment<'a> {
     }
 
     #[inline]
+    fn is_code(&self) -> bool {
+        self.name().to_bytes() == b"__TEXT"
+    }
+
+    #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
         match *self {
             Segment::Segment32(seg) => Svma(seg.vmaddr as usize as *const u8),

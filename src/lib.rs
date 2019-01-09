@@ -204,6 +204,10 @@ pub trait Segment: Sized + Debug {
     /// Get this segment's name.
     fn name(&self) -> &CStr;
 
+    /// Returns `true` if this is a code segment.
+    #[inline]
+    fn is_code(&self) -> bool { false }
+
     /// Get this segment's stated virtual address of this segment.
     ///
     /// This is the virtual memory address without the bias applied. See the
