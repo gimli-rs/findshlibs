@@ -14,8 +14,6 @@ use std::slice;
 
 use libc;
 
-
-
 cfg_if! {
     if #[cfg(target_pointer_width = "32")] {
         type Phdr = libc::Elf32_Phdr;
