@@ -1,5 +1,6 @@
 //! The MacOS implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html).
+#![allow(clippy::cast_ptr_alignment)]
 
 use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
@@ -7,7 +8,6 @@ use super::SharedLibrary as SharedLibraryTrait;
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
-use std::ptr;
 use std::sync::Mutex;
 use std::usize;
 
@@ -259,7 +259,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
             if let Some(header) = unsafe { MachHeader::from_header_ptr(header) } {
                 assert!(slide != 0,
                         "If we have a header pointer, slide should be valid");
-                assert!(name != ptr::null(),
+                assert!(!name.is_null(),
                         "If we have a header pointer, name should be valid");
 
                 let name = unsafe { CStr::from_ptr(name) };
@@ -286,8 +286,7 @@ mod tests {
             found_dyld |= shlib.name
                 .to_bytes()
                 .split(|c| *c == b'.' || *c == b'/')
-                .find(|s| s == b"libdyld")
-                .is_some();
+                .any(|s| s == b"libdyld");
         });
         assert!(found_dyld);
     }

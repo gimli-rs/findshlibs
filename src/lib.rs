@@ -197,6 +197,7 @@ simple_newtypes! {
 }
 
 /// A mapped segment in a shared library.
+#[allow(clippy::len_without_is_empty)]
 pub trait Segment: Sized + Debug {
     /// The associated shared library type for this segment.
     type SharedLibrary: SharedLibrary<Segment = Self>;
@@ -206,7 +207,9 @@ pub trait Segment: Sized + Debug {
 
     /// Returns `true` if this is a code segment.
     #[inline]
-    fn is_code(&self) -> bool { false }
+    fn is_code(&self) -> bool {
+        false
+    }
 
     /// Get this segment's stated virtual address of this segment.
     ///
