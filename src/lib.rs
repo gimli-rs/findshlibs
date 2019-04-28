@@ -257,19 +257,31 @@ pub trait Segment: Sized + Debug {
 pub enum SharedLibraryId {
     /// A UUID (used on mac)
     Uuid([u8; 16]),
+    /// A GNU build ID
+    GnuBuildId(Vec<u8>),
+}
+
+impl SharedLibraryId {
+    /// Returns the raw bytes of the shared library ID.
+    pub fn as_bytes(&self) -> &[u8] {
+        match *self {
+            SharedLibraryId::Uuid(ref bytes) => &*bytes,
+            SharedLibraryId::GnuBuildId(ref bytes) => &bytes,
+        }
+    }
 }
 
 impl fmt::Display for SharedLibraryId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SharedLibraryId::Uuid(ref bytes) => {
-                for (idx, byte) in bytes.iter().enumerate() {
-                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
-                        try!(write!(f, "-"));
-                    }
-                    try!(write!(f, "{:02x}", byte));
-                }
+        let (bytes, is_uuid): (&[u8], _) = match *self {
+            SharedLibraryId::Uuid(ref bytes) => (&*bytes, true),
+            SharedLibraryId::GnuBuildId(ref bytes) => (&bytes, false),
+        };
+        for (idx, byte) in bytes.iter().enumerate() {
+            if is_uuid && (idx == 4 || idx == 6 || idx == 8 || idx == 10) {
+                try!(write!(f, "-"));
             }
+            try!(write!(f, "{:02x}", byte));
         }
         Ok(())
     }
@@ -280,6 +292,9 @@ impl fmt::Debug for SharedLibraryId {
         match *self {
             SharedLibraryId::Uuid(..) => {
                 write!(f, "Uuid(\"{}\")", self)?;
+            }
+            SharedLibraryId::GnuBuildId(..) => {
+                write!(f, "GnuBuildId(\"{}\")", self)?;
             }
         }
         Ok(())
