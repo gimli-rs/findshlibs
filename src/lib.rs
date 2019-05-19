@@ -86,7 +86,7 @@ extern crate lazy_static;
 #[cfg(target_os = "linux")]
 extern crate libc;
 
-use std::ffi::CStr;
+use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::ptr;
 
@@ -203,7 +203,7 @@ pub trait Segment: Sized + Debug {
     type SharedLibrary: SharedLibrary<Segment = Self>;
 
     /// Get this segment's name.
-    fn name(&self) -> &CStr;
+    fn name(&self) -> &OsStr;
 
     /// Returns `true` if this is a code segment.
     #[inline]
@@ -310,7 +310,7 @@ pub trait SharedLibrary: Sized + Debug {
     type SegmentIter: Debug + Iterator<Item = Self::Segment>;
 
     /// Get the name of this shared library.
-    fn name(&self) -> &CStr;
+    fn name(&self) -> &OsStr;
 
     /// Get the debug-id of this shared library if available.
     fn id(&self) -> Option<SharedLibraryId>;

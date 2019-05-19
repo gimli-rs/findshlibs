@@ -5,7 +5,7 @@ use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 use super::{Bias, IterationControl, SharedLibraryId, Svma};
 
-use std::ffi::CStr;
+use std::ffi::OsStr;
 use std::marker::PhantomData;
 use std::usize;
 
@@ -19,7 +19,7 @@ impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::unsupported::SharedLibrary<'a>;
 
     #[inline]
-    fn name(&self) -> &CStr {
+    fn name(&self) -> &OsStr {
         unreachable!()
     }
 
@@ -60,7 +60,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type SegmentIter = SegmentIter<'a>;
 
     #[inline]
-    fn name(&self) -> &CStr {
+    fn name(&self) -> &OsStr {
         unreachable!()
     }
 

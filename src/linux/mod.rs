@@ -7,7 +7,8 @@ use super::{Bias, IterationControl, SharedLibraryId, Svma};
 use std::any::Any;
 use std::borrow::Cow;
 use std::env::current_exe;
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, OsStr};
+use std::os::unix::ffi::OsStrExt;
 use std::fmt;
 use std::isize;
 use std::marker::PhantomData;
@@ -46,23 +47,23 @@ pub struct Segment<'a> {
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::linux::SharedLibrary<'a>;
 
-    fn name(&self) -> &CStr {
+    fn name(&self) -> &OsStr {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
-                libc::PT_NULL => CStr::from_ptr("NULL\0".as_ptr() as _),
-                libc::PT_LOAD => CStr::from_ptr("LOAD\0".as_ptr() as _),
-                libc::PT_DYNAMIC => CStr::from_ptr("DYNAMIC\0".as_ptr() as _),
-                libc::PT_INTERP => CStr::from_ptr("INTERP\0".as_ptr() as _),
-                libc::PT_NOTE => CStr::from_ptr("NOTE\0".as_ptr() as _),
-                libc::PT_SHLIB => CStr::from_ptr("SHLI\0".as_ptr() as _),
-                libc::PT_PHDR => CStr::from_ptr("PHDR\0".as_ptr() as _),
-                libc::PT_TLS => CStr::from_ptr("TLS\0".as_ptr() as _),
-                libc::PT_NUM => CStr::from_ptr("NUM\0".as_ptr() as _),
-                libc::PT_LOOS => CStr::from_ptr("LOOS\0".as_ptr() as _),
-                libc::PT_GNU_EH_FRAME => CStr::from_ptr("GNU_EH_FRAME\0".as_ptr() as _),
-                libc::PT_GNU_STACK => CStr::from_ptr("GNU_STACK\0".as_ptr() as _),
-                libc::PT_GNU_RELRO => CStr::from_ptr("GNU_RELRO\0".as_ptr() as _),
-                _ => CStr::from_ptr("(unknown segment type)\0".as_ptr() as _),
+                libc::PT_NULL => OsStr::from_bytes(b"NULL"),
+                libc::PT_LOAD => OsStr::from_bytes(b"LOAD"),
+                libc::PT_DYNAMIC => OsStr::from_bytes(b"DYNAMIC"),
+                libc::PT_INTERP => OsStr::from_bytes(b"INTERP"),
+                libc::PT_NOTE => OsStr::from_bytes(b"NOTE"),
+                libc::PT_SHLIB => OsStr::from_bytes(b"SHLI"),
+                libc::PT_PHDR => OsStr::from_bytes(b"PHDR"),
+                libc::PT_TLS => OsStr::from_bytes(b"TLS"),
+                libc::PT_NUM => OsStr::from_bytes(b"NUM"),
+                libc::PT_LOOS => OsStr::from_bytes(b"LOOS"),
+                libc::PT_GNU_EH_FRAME => OsStr::from_bytes(b"GNU_EH_FRAME"),
+                libc::PT_GNU_STACK => OsStr::from_bytes(b"GNU_STACK"),
+                libc::PT_GNU_RELRO => OsStr::from_bytes(b"GNU_RELRO"),
+                _ => OsStr::from_bytes(b"(unknown segment type)"),
             }
         }
     }
@@ -202,8 +203,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type SegmentIter = SegmentIter<'a>;
 
     #[inline]
-    fn name(&self) -> &CStr {
-        &*self.name
+    fn name(&self) -> &OsStr {
+        OsStr::from_bytes(self.name.to_bytes())
     }
 
     fn id(&self) -> Option<SharedLibraryId> {
@@ -380,7 +381,7 @@ mod tests {
         let mut names = vec![];
         linux::SharedLibrary::each(|shlib| {
             println!("{:?}", shlib);
-            let name = OsStr::from_bytes(shlib.name().to_bytes());
+            let name = shlib.name();
             if name != OsStr::new("") {
                 names.push(name.to_str().unwrap().to_string());
             }
@@ -398,7 +399,7 @@ mod tests {
         use std::process::Command;
 
         linux::SharedLibrary::each(|shlib| {
-            let name = OsStr::from_bytes(shlib.name().to_bytes());
+            let name = shlib.name();
             let id = shlib.id();
             if id.is_none() {
                 println!("no id found for {:?}", name);
@@ -426,6 +427,7 @@ mod tests {
 
     #[test]
     fn have_load_segment() {
+        use std::os::unix::ffi::OsStrExt;
         linux::SharedLibrary::each(|shlib| {
             println!("shlib = {:?}", shlib.name());
 
@@ -433,7 +435,7 @@ mod tests {
             for seg in shlib.segments() {
                 println!("    segment = {:?}", seg.name());
 
-                found_load |= seg.name().to_bytes() == b"LOAD";
+                found_load |= seg.name().as_bytes() == b"LOAD";
             }
             assert!(found_load);
         });

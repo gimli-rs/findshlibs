@@ -6,7 +6,8 @@ use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
 
-use std::ffi::CStr;
+use std::ffi::{CStr, OsStr};
+use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 use std::usize;
@@ -36,16 +37,17 @@ impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::macos::SharedLibrary<'a>;
 
     #[inline]
-    fn name(&self) -> &CStr {
-        match *self {
+    fn name(&self) -> &OsStr {
+        let cstr = match *self {
             Segment::Segment32(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
             Segment::Segment64(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
-        }
+        };
+        OsStr::from_bytes(cstr.to_bytes())
     }
 
     #[inline]
     fn is_code(&self) -> bool {
-        self.name().to_bytes() == b"__TEXT"
+        self.name().as_bytes() == b"__TEXT"
     }
 
     #[inline]
@@ -201,8 +203,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type SegmentIter = SegmentIter<'a>;
 
     #[inline]
-    fn name(&self) -> &CStr {
-        self.name
+    fn name(&self) -> &OsStr {
+        OsStr::from_bytes(self.name.to_bytes())
     }
 
     fn id(&self) -> Option<SharedLibraryId> {
@@ -328,6 +330,7 @@ mod tests {
 
     #[test]
     fn have_text_or_pagezero() {
+        use std::os::unix::ffi::OsStrExt;
         macos::SharedLibrary::each(|shlib| {
             println!("shlib = {:?}", shlib.name());
 
@@ -335,8 +338,8 @@ mod tests {
             for seg in shlib.segments() {
                 println!("    segment = {:?}", seg.name());
 
-                found_text_or_pagezero |= seg.name().to_bytes() == b"__TEXT";
-                found_text_or_pagezero |= seg.name().to_bytes() == b"__PAGEZERO";
+                found_text_or_pagezero |= seg.name().as_bytes() == b"__TEXT";
+                found_text_or_pagezero |= seg.name().as_bytes() == b"__PAGEZERO";
             }
             assert!(found_text_or_pagezero);
         });
