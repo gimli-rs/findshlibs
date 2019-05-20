@@ -86,6 +86,12 @@ extern crate lazy_static;
 #[cfg(target_os = "linux")]
 extern crate libc;
 
+#[cfg(target_os = "macos")]
+pub mod macos;
+
+#[cfg(target_os = "linux")]
+pub mod linux;
+
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::ptr;
@@ -95,8 +101,6 @@ pub mod unsupported;
 cfg_if!(
     if #[cfg(target_os = "linux")] {
 
-        pub mod linux;
-
         /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
@@ -105,8 +109,6 @@ cfg_if!(
         pub const TARGET_SUPPORTED: bool = true;
 
     } else if #[cfg(target_os = "macos")] {
-
-        pub mod macos;
 
         /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
         /// implementation for the target operating system.
