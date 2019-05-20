@@ -371,4 +371,12 @@ mod tests {
             assert!(found_code);
         });
     }
+
+    #[test]
+    fn get_id() {
+        windows::SharedLibrary::each(|shlib| {
+            assert!(shlib.id().is_some());
+            assert!(shlib.debug_id().is_some());
+        });
+    }
 }
