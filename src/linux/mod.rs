@@ -377,7 +377,6 @@ mod tests {
     #[test]
     fn get_name() {
         use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
         let mut names = vec![];
         linux::SharedLibrary::each(|shlib| {
             println!("{:?}", shlib);
@@ -393,8 +392,6 @@ mod tests {
 
     #[test]
     fn get_id() {
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
         use std::path::Path;
         use std::process::Command;
 
