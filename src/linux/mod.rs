@@ -19,15 +19,11 @@ use std::slice;
 
 use libc;
 
-cfg_if! {
-    if #[cfg(target_pointer_width = "32")] {
-        type Phdr = libc::Elf32_Phdr;
-    } else if #[cfg(target_pointer_width = "64")] {
-        type Phdr = libc::Elf64_Phdr;
-    } else {
-        // Unsupported.
-    }
-}
+#[cfg(target_pointer_width = "32")]
+type Phdr = libc::Elf32_Phdr;
+
+#[cfg(target_pointer_width = "64")]
+type Phdr = libc::Elf64_Phdr;
 
 const NT_GNU_BUILD_ID: u32 = 3;
 
