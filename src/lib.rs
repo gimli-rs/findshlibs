@@ -86,17 +86,26 @@ extern crate lazy_static;
 #[cfg(target_os = "linux")]
 extern crate libc;
 
-use std::ffi::CStr;
+#[cfg(target_os = "windows")]
+extern crate winapi;
+
+use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::ptr;
 
 pub mod unsupported;
 
+#[cfg(target_os = "linux")]
+pub mod linux;
+
+#[cfg(target_os = "windows")]
+pub mod windows;
+
+#[cfg(target_os = "macos")]
+pub mod macos;
+
 cfg_if!(
     if #[cfg(target_os = "linux")] {
-
-        pub mod linux;
-
         /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
@@ -105,25 +114,26 @@ cfg_if!(
         pub const TARGET_SUPPORTED: bool = true;
 
     } else if #[cfg(target_os = "macos")] {
-
-        pub mod macos;
-
         /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
 
         /// An indicator if this platform is supported.
         pub const TARGET_SUPPORTED: bool = true;
+    } else if #[cfg(target_os = "windows")] {
+        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+        /// implementation for the target operating system.
+        pub type TargetSharedLibrary<'a> = windows::SharedLibrary<'a>;
 
+        /// An indicator if this platform is supported.
+        pub const TARGET_SUPPORTED: bool = true;
     } else {
-
         /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
         /// implementation for the target operating system.
         pub type TargetSharedLibrary<'a> = unsupported::SharedLibrary<'a>;
 
         /// An indicator if this platform is supported.
         pub const TARGET_SUPPORTED: bool = false;
-
     }
 );
 
@@ -203,7 +213,7 @@ pub trait Segment: Sized + Debug {
     type SharedLibrary: SharedLibrary<Segment = Self>;
 
     /// Get this segment's name.
-    fn name(&self) -> &CStr;
+    fn name(&self) -> &OsStr;
 
     /// Returns `true` if this is a code segment.
     #[inline]
@@ -259,6 +269,10 @@ pub enum SharedLibraryId {
     Uuid([u8; 16]),
     /// A GNU build ID
     GnuBuildId(Vec<u8>),
+    /// The PE timestamp and size
+    PeSignature(u32, u32),
+    /// A PDB signature and age,
+    PdbSignature([u8; 16], u32),
 }
 
 impl SharedLibraryId {
@@ -267,6 +281,8 @@ impl SharedLibraryId {
         match *self {
             SharedLibraryId::Uuid(ref bytes) => &*bytes,
             SharedLibraryId::GnuBuildId(ref bytes) => &bytes,
+            SharedLibraryId::PeSignature(_, _) => &[][..],
+            SharedLibraryId::PdbSignature(ref bytes, _) => &bytes[..],
         }
     }
 }
@@ -276,6 +292,15 @@ impl fmt::Display for SharedLibraryId {
         let (bytes, is_uuid): (&[u8], _) = match *self {
             SharedLibraryId::Uuid(ref bytes) => (&*bytes, true),
             SharedLibraryId::GnuBuildId(ref bytes) => (&bytes, false),
+            SharedLibraryId::PeSignature(timestamp, size_of_image) => {
+                return write!(f, "{:08X}{:x}", timestamp, size_of_image);
+            }
+            SharedLibraryId::PdbSignature(ref bytes, age) => {
+                for byte in bytes.iter() {
+                    try!(write!(f, "{:02X}", byte));
+                }
+                return write!(f, "{:x}", age);
+            }
         };
         for (idx, byte) in bytes.iter().enumerate() {
             if is_uuid && (idx == 4 || idx == 6 || idx == 8 || idx == 10) {
@@ -289,15 +314,13 @@ impl fmt::Display for SharedLibraryId {
 
 impl fmt::Debug for SharedLibraryId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SharedLibraryId::Uuid(..) => {
-                write!(f, "Uuid(\"{}\")", self)?;
-            }
-            SharedLibraryId::GnuBuildId(..) => {
-                write!(f, "GnuBuildId(\"{}\")", self)?;
-            }
-        }
-        Ok(())
+        let name = match *self {
+            SharedLibraryId::Uuid(..) => "Uuid",
+            SharedLibraryId::GnuBuildId(..) => "GnuBuildId",
+            SharedLibraryId::PeSignature(..) => "PeSignature",
+            SharedLibraryId::PdbSignature(..) => "PdbSignature",
+        };
+        write!(f, "{}(\"{}\")", name, self)
     }
 }
 
@@ -310,10 +333,20 @@ pub trait SharedLibrary: Sized + Debug {
     type SegmentIter: Debug + Iterator<Item = Self::Segment>;
 
     /// Get the name of this shared library.
-    fn name(&self) -> &CStr;
+    fn name(&self) -> &OsStr;
+
+    /// Get the name of the debug file with this shared library if there is one.
+    fn debug_name(&self) -> Option<&OsStr> {
+        None
+    }
+
+    /// Get the code-id of this shared library if available.
+    fn id(&self) -> Option<SharedLibraryId>;
 
     /// Get the debug-id of this shared library if available.
-    fn id(&self) -> Option<SharedLibraryId>;
+    fn debug_id(&self) -> Option<SharedLibraryId> {
+        None
+    }
 
     /// Iterate over this shared library's segments.
     fn segments(&self) -> Self::SegmentIter;
@@ -375,5 +408,13 @@ mod tests {
                 assert_eq!(*any.downcast_ref::<&'static str>().unwrap(), "uh oh");
             }
         }
+    }
+
+    #[test]
+    fn get_id() {
+        windows::SharedLibrary::each(|shlib| {
+            assert!(shlib.id().is_some());
+            assert!(shlib.debug_id().is_some());
+        });
     }
 }
