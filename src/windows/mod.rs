@@ -39,7 +39,10 @@ pub struct Segment<'a> {
 
 impl<'a> fmt::Debug for Segment<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Segment").finish()
+        f.debug_struct("Segment")
+            .field("name", &self.name())
+            .field("is_code", &self.is_code())
+            .finish()
     }
 }
 
@@ -118,7 +121,13 @@ pub struct SharedLibrary<'a> {
 
 impl<'a> fmt::Debug for SharedLibrary<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("SharedLibrary").finish()
+        f.debug_struct("SharedLibrary")
+            .field("module_base", &self.module_base())
+            .field("name", &self.name())
+            .field("debug_name", &self.debug_name())
+            .field("id", &self.id())
+            .field("debug_id", &self.debug_id())
+            .finish()
     }
 }
 

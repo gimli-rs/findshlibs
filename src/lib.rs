@@ -35,6 +35,7 @@
 //!
 //! * Linux
 //! * macOS
+//! * Windows
 //!
 //! If a platform is not supported then a fallback implementation is used that
 //! does nothing.  To see if your platform does something at runtime the
@@ -74,10 +75,25 @@
 //! >   its text symbols by adding the bias to their SVMAs.
 //!
 //! [LUL]: http://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
+//!
+//! ## Names and IDs
+//!
+//! `findshlibs` also gives access to module names and IDs.  Since this is also
+//! not consistent across operating systems the following general rules apply:
+//!
+//! > * `id` refers to the ID of the object file itself.  This is generally
+//! >   available on all platforms however it might still not be compiled into
+//! >   the binary in all case.  For instance on Linux the `gnu.build-id` note
+//! >   needs to be compiled in (which Rust does automatically).
+//! > * `debug_id` refers to the ID of the debug file.  This only plays a role
+//! >   on Windows where the executable and the debug file (PDB) have a different
+//! >   ID.
+//! > * `name` is the name of the executable.  On most operating systems (and
+//! >   all systems implemented currently) this is not just the name but in fact
+//! >   the entire path to the executable.
+//! > * `debug_name` refers to the debug file if it's different.  This is again
+//! >   the case on windows where this will be the path to the PDB file.
 #![deny(missing_docs)]
-
-#[macro_use]
-extern crate cfg_if;
 
 #[cfg(target_os = "macos")]
 #[macro_use]
@@ -98,44 +114,34 @@ pub mod unsupported;
 #[cfg(target_os = "linux")]
 pub mod linux;
 
-#[cfg(target_os = "windows")]
-pub mod windows;
-
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-cfg_if!(
-    if #[cfg(target_os = "linux")] {
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = true;
+#[cfg(target_os = "linux")]
+use linux as native_mod;
 
-    } else if #[cfg(target_os = "macos")] {
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
+#[cfg(target_os = "macos")]
+use macos as native_mod;
 
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = true;
-    } else if #[cfg(target_os = "windows")] {
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = windows::SharedLibrary<'a>;
+#[cfg(target_os = "windows")]
+use windows as native_mod;
 
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = true;
-    } else {
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = unsupported::SharedLibrary<'a>;
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+use unsupported as native_mod;
 
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = false;
-    }
-);
+/// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+/// implementation for the target operating system.
+pub type TargetSharedLibrary<'a> = native_mod::SharedLibrary<'a>;
+
+/// An indicator if this platform is supported.
+pub const TARGET_SUPPORTED: bool = cfg!(any(
+    target_os = "macos",
+    target_os = "linux",
+    target_os = "windows"
+));
 
 macro_rules! simple_newtypes {
     (
