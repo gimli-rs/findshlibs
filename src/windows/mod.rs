@@ -295,6 +295,10 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                     continue;
                 }
 
+                // to prevent something else from unloading the module while
+                // we're poking around in memory we load it a second time.  This
+                // will effectively just increment the refcount since it has been
+                // loaded before.
                 let handle_lock = LoadLibraryExW(
                     module_path.as_ptr(),
                     ptr::null_mut(),
