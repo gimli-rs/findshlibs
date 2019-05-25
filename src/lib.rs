@@ -80,7 +80,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 extern crate libc;
 
 #[cfg(target_os = "macos")]
