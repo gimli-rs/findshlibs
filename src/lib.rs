@@ -23,7 +23,7 @@
 //!         for seg in shlib.segments() {
 //!             println!("    {}: segment {}",
 //!                      seg.actual_virtual_memory_address(shlib),
-//!                      seg.name().to_string_lossy());
+//!                      seg.name());
 //!         }
 //!     });
 //! }
@@ -219,7 +219,7 @@ pub trait Segment: Sized + Debug {
     type SharedLibrary: SharedLibrary<Segment = Self>;
 
     /// Get this segment's name.
-    fn name(&self) -> &OsStr;
+    fn name(&self) -> &str;
 
     /// Returns `true` if this is a code segment.
     #[inline]
