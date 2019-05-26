@@ -50,17 +50,12 @@ impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::windows::SharedLibrary<'a>;
 
     #[inline]
-    fn name(&self) -> &OsStr {
-        let cstr = unsafe { CStr::from_ptr(self.section.Name.as_ptr() as *const i8) };
-        if let Ok(s) = cstr.to_str() {
-            OsStr::new(s)
-        } else {
-            OsStr::new("")
-        }
+    fn name(&self) -> &str {
+        std::str::from_utf8(&self.section.Name).unwrap_or("").trim_end_matches('\0')
     }
 
     fn is_code(&self) -> bool {
-        self.name() == OsStr::new(".text")
+        self.name() == ".text"
     }
 
     #[inline]
