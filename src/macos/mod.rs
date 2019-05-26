@@ -37,12 +37,12 @@ impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::macos::SharedLibrary<'a>;
 
     #[inline]
-    fn name(&self) -> &OsStr {
+    fn name(&self) -> &str {
         let cstr = match *self {
             Segment::Segment32(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
             Segment::Segment64(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
         };
-        OsStr::from_bytes(cstr.to_bytes())
+        cstr.to_str().unwrap_or("")
     }
 
     #[inline]
@@ -335,7 +335,6 @@ mod tests {
 
     #[test]
     fn have_text_or_pagezero() {
-        use std::os::unix::ffi::OsStrExt;
         macos::SharedLibrary::each(|shlib| {
             println!("shlib = {:?}", shlib.name());
 
@@ -343,8 +342,8 @@ mod tests {
             for seg in shlib.segments() {
                 println!("    segment = {:?}", seg.name());
 
-                found_text_or_pagezero |= seg.name().as_bytes() == b"__TEXT";
-                found_text_or_pagezero |= seg.name().as_bytes() == b"__PAGEZERO";
+                found_text_or_pagezero |= seg.name() == "__TEXT";
+                found_text_or_pagezero |= seg.name() == "__PAGEZERO";
             }
             assert!(found_text_or_pagezero);
         });

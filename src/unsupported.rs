@@ -19,7 +19,7 @@ impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::unsupported::SharedLibrary<'a>;
 
     #[inline]
-    fn name(&self) -> &OsStr {
+    fn name(&self) -> &str {
         unreachable!()
     }
 
