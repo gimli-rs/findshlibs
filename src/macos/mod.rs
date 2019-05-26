@@ -42,7 +42,7 @@ impl<'a> SegmentTrait for Segment<'a> {
             Segment::Segment32(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
             Segment::Segment64(seg) => unsafe { CStr::from_ptr(seg.segname.as_ptr()) },
         };
-        cstr.to_str().unwrap_or("")
+        cstr.to_str().unwrap_or("(invalid segment name)")
     }
 
     #[inline]
