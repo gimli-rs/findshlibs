@@ -47,23 +47,23 @@ pub struct Segment<'a> {
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::linux::SharedLibrary<'a>;
 
-    fn name(&self) -> &OsStr {
+    fn name(&self) -> &str {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
-                libc::PT_NULL => OsStr::from_bytes(b"NULL"),
-                libc::PT_LOAD => OsStr::from_bytes(b"LOAD"),
-                libc::PT_DYNAMIC => OsStr::from_bytes(b"DYNAMIC"),
-                libc::PT_INTERP => OsStr::from_bytes(b"INTERP"),
-                libc::PT_NOTE => OsStr::from_bytes(b"NOTE"),
-                libc::PT_SHLIB => OsStr::from_bytes(b"SHLI"),
-                libc::PT_PHDR => OsStr::from_bytes(b"PHDR"),
-                libc::PT_TLS => OsStr::from_bytes(b"TLS"),
-                libc::PT_NUM => OsStr::from_bytes(b"NUM"),
-                libc::PT_LOOS => OsStr::from_bytes(b"LOOS"),
-                libc::PT_GNU_EH_FRAME => OsStr::from_bytes(b"GNU_EH_FRAME"),
-                libc::PT_GNU_STACK => OsStr::from_bytes(b"GNU_STACK"),
-                libc::PT_GNU_RELRO => OsStr::from_bytes(b"GNU_RELRO"),
-                _ => OsStr::from_bytes(b"(unknown segment type)"),
+                libc::PT_NULL => "NULL",
+                libc::PT_LOAD => "LOAD",
+                libc::PT_DYNAMIC => "DYNAMIC",
+                libc::PT_INTERP => "INTERP",
+                libc::PT_NOTE => "NOTE",
+                libc::PT_SHLIB => "SHLI",
+                libc::PT_PHDR => "PHDR",
+                libc::PT_TLS => "TLS",
+                libc::PT_NUM => "NUM",
+                libc::PT_LOOS => "LOOS",
+                libc::PT_GNU_EH_FRAME => "GNU_EH_FRAME",
+                libc::PT_GNU_STACK => "GNU_STACK",
+                libc::PT_GNU_RELRO => "GNU_RELRO",
+                _ => "(unknown segment type)",
             }
         }
     }
@@ -424,7 +424,6 @@ mod tests {
 
     #[test]
     fn have_load_segment() {
-        use std::os::unix::ffi::OsStrExt;
         linux::SharedLibrary::each(|shlib| {
             println!("shlib = {:?}", shlib.name());
 
@@ -432,7 +431,7 @@ mod tests {
             for seg in shlib.segments() {
                 println!("    segment = {:?}", seg.name());
 
-                found_load |= seg.name().as_bytes() == b"LOAD";
+                found_load |= seg.name() == "LOAD";
             }
             assert!(found_load);
         });
