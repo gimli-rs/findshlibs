@@ -15,12 +15,9 @@ repository = "gimli-rs/findshlibs"
 [badges.travis-ci]
 repository = "gimli-rs/findshlibs"
 
-[target.'cfg(target_os = "macos")'.build-dependencies]
-bindgen = { version = "0.39.0", default-features = false }
-
 [dependencies]
 lazy_static = "1.0.0"
-libc = "0.2.43"
+libc = "0.2.55"
 
 [features]
 nightly = []

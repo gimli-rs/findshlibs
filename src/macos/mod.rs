@@ -7,12 +7,23 @@ use super::SharedLibrary as SharedLibraryTrait;
 use super::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::ffi::{CStr, OsStr};
+use std::fmt;
 use std::marker::PhantomData;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::Mutex;
 use std::usize;
 
-mod bindings;
+use libc;
+
+const LC_UUID: u32 = 27;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct uuid_command {
+    cmd: u32,
+    cmdsize: u32,
+    uuid: [u8; 16usize],
+}
 
 lazy_static! {
     /// A lock protecting dyld FFI calls.
@@ -25,12 +36,20 @@ lazy_static! {
 }
 
 /// A Mach-O segment.
-#[derive(Debug)]
 pub enum Segment<'a> {
     /// A 32-bit Mach-O segment.
-    Segment32(&'a bindings::segment_command),
+    Segment32(&'a libc::segment_command),
     /// A 64-bit Mach-O segment.
-    Segment64(&'a bindings::segment_command_64),
+    Segment64(&'a libc::segment_command_64),
+}
+
+impl<'a> fmt::Debug for Segment<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Segment")
+            .field("name", &self.name())
+            .field("is_code", &self.is_code())
+            .finish()
+    }
 }
 
 impl<'a> SegmentTrait for Segment<'a> {
@@ -77,7 +96,7 @@ impl<'a> SegmentTrait for Segment<'a> {
 #[derive(Debug)]
 pub struct SegmentIter<'a> {
     phantom: PhantomData<&'a SharedLibrary<'a>>,
-    commands: *const bindings::load_command,
+    commands: *const libc::load_command,
     num_commands: usize,
 }
 
@@ -90,8 +109,8 @@ impl<'a> SegmentIter<'a> {
             num_commands -= 1;
             let this_command = unsafe { commands.as_ref().unwrap() };
             let command_size = this_command.cmdsize as isize;
-            if let bindings::LC_UUID = this_command.cmd {
-                let uuid_cmd = commands as *const bindings::uuid_command;
+            if let LC_UUID = this_command.cmd {
+                let uuid_cmd = commands as *const uuid_command;
                 return Some(unsafe { (*uuid_cmd).uuid });
             }
             commands = unsafe { (commands as *const u8).offset(command_size) as *const _ };
@@ -112,15 +131,15 @@ impl<'a> Iterator for SegmentIter<'a> {
             let command_size = this_command.cmdsize as isize;
 
             match this_command.cmd {
-                bindings::LC_SEGMENT => {
-                    let segment = self.commands as *const bindings::segment_command;
+                libc::LC_SEGMENT => {
+                    let segment = self.commands as *const libc::segment_command;
                     let segment = unsafe { segment.as_ref().unwrap() };
                     self.commands =
                         unsafe { (self.commands as *const u8).offset(command_size) as *const _ };
                     return Some(Segment::Segment32(segment));
                 }
-                bindings::LC_SEGMENT_64 => {
-                    let segment = self.commands as *const bindings::segment_command_64;
+                libc::LC_SEGMENT_64 => {
+                    let segment = self.commands as *const libc::segment_command_64;
                     let segment = unsafe { segment.as_ref().unwrap() };
                     self.commands =
                         unsafe { (self.commands as *const u8).offset(command_size) as *const _ };
@@ -146,26 +165,25 @@ enum MachType {
 }
 
 impl MachType {
-    unsafe fn from_header_ptr(header: *const bindings::mach_header) -> Option<MachType> {
+    unsafe fn from_header_ptr(header: *const libc::mach_header) -> Option<MachType> {
         header.as_ref().and_then(|header| match header.magic {
-            bindings::MH_MAGIC => Some(MachType::Mach32),
-            bindings::MH_MAGIC_64 => Some(MachType::Mach64),
+            libc::MH_MAGIC => Some(MachType::Mach32),
+            libc::MH_MAGIC_64 => Some(MachType::Mach64),
             _ => None,
         })
     }
 }
 
-#[derive(Debug)]
 enum MachHeader<'a> {
-    Header32(&'a bindings::mach_header),
-    Header64(&'a bindings::mach_header_64),
+    Header32(&'a libc::mach_header),
+    Header64(&'a libc::mach_header_64),
 }
 
 impl<'a> MachHeader<'a> {
-    unsafe fn from_header_ptr(header: *const bindings::mach_header) -> Option<MachHeader<'a>> {
+    unsafe fn from_header_ptr(header: *const libc::mach_header) -> Option<MachHeader<'a>> {
         MachType::from_header_ptr(header).and_then(|ty| match ty {
             MachType::Mach32 => header.as_ref().map(MachHeader::Header32),
-            MachType::Mach64 => (header as *const bindings::mach_header_64)
+            MachType::Mach64 => (header as *const libc::mach_header_64)
                 .as_ref()
                 .map(MachHeader::Header64),
         })
@@ -178,11 +196,19 @@ impl<'a> MachHeader<'a> {
 /// This wraps the `_dyld_image_count` and
 /// `_dyld_get_image_{header,vmaddr_slide,name}` system APIs from the
 /// `<mach-o/dyld.h>` header.
-#[derive(Debug)]
 pub struct SharedLibrary<'a> {
     header: MachHeader<'a>,
     slide: isize,
     name: &'a CStr,
+}
+
+impl<'a> fmt::Debug for SharedLibrary<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SharedLibrary")
+            .field("name", &self.name())
+            .field("id", &self.id())
+            .finish()
+    }
 }
 
 impl<'a> SharedLibrary<'a> {
@@ -212,8 +238,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         match self.header {
             MachHeader::Header32(header) => {
                 let num_commands = header.ncmds;
-                let header = header as *const bindings::mach_header;
-                let commands = unsafe { header.offset(1) as *const bindings::load_command };
+                let header = header as *const libc::mach_header;
+                let commands = unsafe { header.offset(1) as *const libc::load_command };
                 SegmentIter {
                     phantom: PhantomData,
                     commands: commands,
@@ -222,8 +248,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
             }
             MachHeader::Header64(header) => {
                 let num_commands = header.ncmds;
-                let header = header as *const bindings::mach_header_64;
-                let commands = unsafe { header.offset(1) as *const bindings::load_command };
+                let header = header as *const libc::mach_header_64;
+                let commands = unsafe { header.offset(1) as *const libc::load_command };
                 SegmentIter {
                     phantom: PhantomData,
                     commands: commands,
@@ -247,14 +273,14 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         // else adds or removes shared libraries while we are iterating them.
         let _dyld_lock = DYLD_LOCK.lock();
 
-        let count = unsafe { bindings::_dyld_image_count() };
+        let count = unsafe { libc::_dyld_image_count() };
 
         for image_idx in 0..count {
             let (header, slide, name) = unsafe {
                 (
-                    bindings::_dyld_get_image_header(image_idx),
-                    bindings::_dyld_get_image_vmaddr_slide(image_idx),
-                    bindings::_dyld_get_image_name(image_idx),
+                    libc::_dyld_get_image_header(image_idx),
+                    libc::_dyld_get_image_vmaddr_slide(image_idx),
+                    libc::_dyld_get_image_name(image_idx),
                 )
             };
 
