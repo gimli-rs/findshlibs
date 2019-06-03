@@ -16,7 +16,7 @@ repository = "gimli-rs/findshlibs"
 repository = "gimli-rs/findshlibs"
 
 [target.'cfg(target_os = "macos")'.build-dependencies]
-bindgen = { version = "0.39.0", default-features = false }
+bindgen = { version = "0.49.2", default-features = false }
 
 [dependencies]
 lazy_static = "1.0.0"
