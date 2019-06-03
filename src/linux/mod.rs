@@ -8,26 +8,22 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::env::current_exe;
 use std::ffi::{CStr, CString, OsStr};
-use std::os::unix::ffi::OsStrExt;
 use std::fmt;
 use std::isize;
 use std::marker::PhantomData;
 use std::mem;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::panic;
 use std::slice;
 
 use libc;
 
-cfg_if! {
-    if #[cfg(target_pointer_width = "32")] {
-        type Phdr = libc::Elf32_Phdr;
-    } else if #[cfg(target_pointer_width = "64")] {
-        type Phdr = libc::Elf64_Phdr;
-    } else {
-        // Unsupported.
-    }
-}
+#[cfg(target_pointer_width = "32")]
+type Phdr = libc::Elf32_Phdr;
+
+#[cfg(target_pointer_width = "64")]
+type Phdr = libc::Elf64_Phdr;
 
 const NT_GNU_BUILD_ID: u32 = 3;
 

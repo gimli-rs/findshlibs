@@ -76,9 +76,6 @@
 //! [LUL]: http://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
 #![deny(missing_docs)]
 
-#[macro_use]
-extern crate cfg_if;
-
 #[cfg(target_os = "macos")]
 #[macro_use]
 extern crate lazy_static;
@@ -86,46 +83,33 @@ extern crate lazy_static;
 #[cfg(target_os = "linux")]
 extern crate libc;
 
+#[cfg(target_os = "macos")]
+pub mod macos;
+
+#[cfg(target_os = "linux")]
+pub mod linux;
+
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::ptr;
 
 pub mod unsupported;
 
-cfg_if!(
-    if #[cfg(target_os = "linux")] {
+#[cfg(target_os = "linux")]
+use linux as native_mod;
 
-        pub mod linux;
+#[cfg(target_os = "macos")]
+use macos as native_mod;
 
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = linux::SharedLibrary<'a>;
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+use unsupported as native_mod;
 
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = true;
+/// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
+/// implementation for the target operating system.
+pub type TargetSharedLibrary<'a> = native_mod::SharedLibrary<'a>;
 
-    } else if #[cfg(target_os = "macos")] {
-
-        pub mod macos;
-
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = macos::SharedLibrary<'a>;
-
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = true;
-
-    } else {
-
-        /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
-        /// implementation for the target operating system.
-        pub type TargetSharedLibrary<'a> = unsupported::SharedLibrary<'a>;
-
-        /// An indicator if this platform is supported.
-        pub const TARGET_SUPPORTED: bool = false;
-
-    }
-);
+/// An indicator if this platform is supported.
+pub const TARGET_SUPPORTED: bool = cfg!(any(target_os = "macos", target_os = "linux"));
 
 macro_rules! simple_newtypes {
     (

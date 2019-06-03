@@ -2,13 +2,13 @@
 //! trait](../trait.SharedLibrary.html).
 #![allow(clippy::cast_ptr_alignment)]
 
-use super::{Bias, IterationControl, Svma, SharedLibraryId};
 use super::Segment as SegmentTrait;
 use super::SharedLibrary as SharedLibraryTrait;
+use super::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::ffi::{CStr, OsStr};
-use std::os::unix::ffi::OsStrExt;
 use std::marker::PhantomData;
+use std::os::unix::ffi::OsStrExt;
 use std::sync::Mutex;
 use std::usize;
 
@@ -147,12 +147,10 @@ enum MachType {
 
 impl MachType {
     unsafe fn from_header_ptr(header: *const bindings::mach_header) -> Option<MachType> {
-        header.as_ref().and_then(|header| {
-            match header.magic {
-                bindings::MH_MAGIC => Some(MachType::Mach32),
-                bindings::MH_MAGIC_64 => Some(MachType::Mach64),
-                _ => None,
-            }
+        header.as_ref().and_then(|header| match header.magic {
+            bindings::MH_MAGIC => Some(MachType::Mach32),
+            bindings::MH_MAGIC_64 => Some(MachType::Mach64),
+            _ => None,
         })
     }
 }
@@ -165,12 +163,11 @@ enum MachHeader<'a> {
 
 impl<'a> MachHeader<'a> {
     unsafe fn from_header_ptr(header: *const bindings::mach_header) -> Option<MachHeader<'a>> {
-        MachType::from_header_ptr(header).and_then(|ty| {
-            match ty {
-                MachType::Mach32 => header.as_ref().map(MachHeader::Header32),
-                MachType::Mach64 => (header as *const bindings::mach_header_64)
-                    .as_ref().map(MachHeader::Header64),
-            }
+        MachType::from_header_ptr(header).and_then(|ty| match ty {
+            MachType::Mach32 => header.as_ref().map(MachHeader::Header32),
+            MachType::Mach64 => (header as *const bindings::mach_header_64)
+                .as_ref()
+                .map(MachHeader::Header64),
         })
     }
 }
@@ -242,8 +239,9 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     }
 
     fn each<F, C>(mut f: F)
-        where F: FnMut(&Self) -> C,
-              C: Into<IterationControl>
+    where
+        F: FnMut(&Self) -> C,
+        C: Into<IterationControl>,
     {
         // Make sure we have exclusive access to dyld so that (hopefully) no one
         // else adds or removes shared libraries while we are iterating them.
@@ -253,16 +251,22 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
         for image_idx in 0..count {
             let (header, slide, name) = unsafe {
-                (bindings::_dyld_get_image_header(image_idx),
-                 bindings::_dyld_get_image_vmaddr_slide(image_idx),
-                 bindings::_dyld_get_image_name(image_idx))
+                (
+                    bindings::_dyld_get_image_header(image_idx),
+                    bindings::_dyld_get_image_vmaddr_slide(image_idx),
+                    bindings::_dyld_get_image_name(image_idx),
+                )
             };
 
             if let Some(header) = unsafe { MachHeader::from_header_ptr(header) } {
-                assert!(slide != 0,
-                        "If we have a header pointer, slide should be valid");
-                assert!(!name.is_null(),
-                        "If we have a header pointer, name should be valid");
+                assert!(
+                    slide != 0,
+                    "If we have a header pointer, slide should be valid"
+                );
+                assert!(
+                    !name.is_null(),
+                    "If we have a header pointer, name should be valid"
+                );
 
                 let name = unsafe { CStr::from_ptr(name) };
                 let shlib = SharedLibrary::new(header, slide, name);
@@ -278,14 +282,15 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::{IterationControl, Segment, SharedLibrary};
     use macos;
-    use super::super::{IterationControl, SharedLibrary, Segment};
 
     #[test]
     fn have_libdyld() {
         let mut found_dyld = false;
         macos::SharedLibrary::each(|shlib| {
-            found_dyld |= shlib.name
+            found_dyld |= shlib
+                .name
                 .to_bytes()
                 .split(|c| *c == b'.' || *c == b'/')
                 .any(|s| s == b"libdyld");
