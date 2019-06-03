@@ -9,7 +9,7 @@ fn main() {
             println!(
                 "    {}: segment {}",
                 seg.actual_virtual_memory_address(shlib),
-                seg.name().to_string_lossy()
+                seg.name()
             );
         }
     });

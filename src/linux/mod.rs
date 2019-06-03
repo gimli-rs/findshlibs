@@ -7,7 +7,8 @@ use super::{Bias, IterationControl, SharedLibraryId, Svma};
 use std::any::Any;
 use std::borrow::Cow;
 use std::env::current_exe;
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, OsStr};
+use std::os::unix::ffi::OsStrExt;
 use std::fmt;
 use std::isize;
 use std::marker::PhantomData;
@@ -46,23 +47,23 @@ pub struct Segment<'a> {
 impl<'a> SegmentTrait for Segment<'a> {
     type SharedLibrary = ::linux::SharedLibrary<'a>;
 
-    fn name(&self) -> &CStr {
+    fn name(&self) -> &str {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
-                libc::PT_NULL => CStr::from_ptr("NULL\0".as_ptr() as _),
-                libc::PT_LOAD => CStr::from_ptr("LOAD\0".as_ptr() as _),
-                libc::PT_DYNAMIC => CStr::from_ptr("DYNAMIC\0".as_ptr() as _),
-                libc::PT_INTERP => CStr::from_ptr("INTERP\0".as_ptr() as _),
-                libc::PT_NOTE => CStr::from_ptr("NOTE\0".as_ptr() as _),
-                libc::PT_SHLIB => CStr::from_ptr("SHLI\0".as_ptr() as _),
-                libc::PT_PHDR => CStr::from_ptr("PHDR\0".as_ptr() as _),
-                libc::PT_TLS => CStr::from_ptr("TLS\0".as_ptr() as _),
-                libc::PT_NUM => CStr::from_ptr("NUM\0".as_ptr() as _),
-                libc::PT_LOOS => CStr::from_ptr("LOOS\0".as_ptr() as _),
-                libc::PT_GNU_EH_FRAME => CStr::from_ptr("GNU_EH_FRAME\0".as_ptr() as _),
-                libc::PT_GNU_STACK => CStr::from_ptr("GNU_STACK\0".as_ptr() as _),
-                libc::PT_GNU_RELRO => CStr::from_ptr("GNU_RELRO\0".as_ptr() as _),
-                _ => CStr::from_ptr("(unknown segment type)\0".as_ptr() as _),
+                libc::PT_NULL => "NULL",
+                libc::PT_LOAD => "LOAD",
+                libc::PT_DYNAMIC => "DYNAMIC",
+                libc::PT_INTERP => "INTERP",
+                libc::PT_NOTE => "NOTE",
+                libc::PT_SHLIB => "SHLI",
+                libc::PT_PHDR => "PHDR",
+                libc::PT_TLS => "TLS",
+                libc::PT_NUM => "NUM",
+                libc::PT_LOOS => "LOOS",
+                libc::PT_GNU_EH_FRAME => "GNU_EH_FRAME",
+                libc::PT_GNU_STACK => "GNU_STACK",
+                libc::PT_GNU_RELRO => "GNU_RELRO",
+                _ => "(unknown segment type)",
             }
         }
     }
@@ -202,8 +203,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     type SegmentIter = SegmentIter<'a>;
 
     #[inline]
-    fn name(&self) -> &CStr {
-        &*self.name
+    fn name(&self) -> &OsStr {
+        OsStr::from_bytes(self.name.to_bytes())
     }
 
     fn id(&self) -> Option<SharedLibraryId> {
@@ -376,11 +377,10 @@ mod tests {
     #[test]
     fn get_name() {
         use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
         let mut names = vec![];
         linux::SharedLibrary::each(|shlib| {
             println!("{:?}", shlib);
-            let name = OsStr::from_bytes(shlib.name().to_bytes());
+            let name = shlib.name();
             if name != OsStr::new("") {
                 names.push(name.to_str().unwrap().to_string());
             }
@@ -392,13 +392,11 @@ mod tests {
 
     #[test]
     fn get_id() {
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
         use std::path::Path;
         use std::process::Command;
 
         linux::SharedLibrary::each(|shlib| {
-            let name = OsStr::from_bytes(shlib.name().to_bytes());
+            let name = shlib.name();
             let id = shlib.id();
             if id.is_none() {
                 println!("no id found for {:?}", name);
@@ -433,7 +431,7 @@ mod tests {
             for seg in shlib.segments() {
                 println!("    segment = {:?}", seg.name());
 
-                found_load |= seg.name().to_bytes() == b"LOAD";
+                found_load |= seg.name() == "LOAD";
             }
             assert!(found_load);
         });
