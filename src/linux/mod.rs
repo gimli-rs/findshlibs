@@ -10,6 +10,7 @@ use std::env::current_exe;
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt;
 use std::isize;
+use std::usize;
 use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
@@ -38,6 +39,18 @@ struct Nhdr32 {
 pub struct Segment<'a> {
     phdr: *const Phdr,
     shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
+}
+
+impl<'a> Segment<'a> {
+    fn is_load(&self) -> bool {
+        unsafe {
+            let hdr = self.phdr.as_ref().unwrap();
+            match hdr.p_type {
+                libc::PT_LOAD => true,
+                _ => false,
+            }
+        }
+    }
 }
 
 impl<'a> SegmentTrait for Segment<'a> {
@@ -262,6 +275,21 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     fn virtual_memory_bias(&self) -> Bias {
         assert!((self.addr as usize) < (isize::MAX as usize));
         Bias(self.addr as usize as isize)
+    }
+
+    fn load_addr(&self) -> Svma {
+        self.segments()
+            .find(|x| x.is_load())
+            .map(|x| x.stated_virtual_memory_address())
+            .unwrap_or_else(|| Svma(usize::MAX as _))
+    }
+
+    fn len(&self) -> usize {
+        self.segments()
+            .skip_while(|x| !x.is_load())
+            .take_while(|x| x.is_load())
+            .map(|x| x.len())
+            .sum()
     }
 
     #[inline]

@@ -92,6 +92,7 @@ pub mod linux;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::ptr;
+use std::usize;
 
 pub mod unsupported;
 
@@ -286,6 +287,7 @@ impl fmt::Debug for SharedLibraryId {
 }
 
 /// A trait representing a shared library that is loaded in this process.
+#[allow(clippy::len_without_is_empty)]
 pub trait SharedLibrary: Sized + Debug {
     /// The associated segment type for this shared library.
     type Segment: Segment<SharedLibrary = Self>;
@@ -298,6 +300,34 @@ pub trait SharedLibrary: Sized + Debug {
 
     /// Get the debug-id of this shared library if available.
     fn id(&self) -> Option<SharedLibraryId>;
+
+    /// Returns the address of where the library is loaded.
+    ///
+    /// This typically is the stated virtual memory address of the first
+    /// code segment but not always.  We follow the breakpad semantics for
+    /// what is considered the load address here so that this information
+    /// can be used to drive server side symbolication systems which are
+    /// generally working with the breakpad definition of what the image
+    /// load address is.
+    fn load_addr(&self) -> Svma {
+        self.segments()
+            .find(|x| x.is_code())
+            .map(|x| x.stated_virtual_memory_address())
+            .unwrap_or_else(|| Svma(usize::MAX as _))
+    }
+
+    /// Returns the size of the image.
+    ///
+    /// This typically is the size of the executable code segment.  This is
+    /// normally used by server side symbolication systems to determine when
+    /// an IP no longer falls into an image.
+    fn len(&self) -> usize {
+        self.segments()
+            .skip_while(|x| !x.is_code())
+            .take_while(|x| x.is_code())
+            .map(|x| x.len())
+            .sum()
+    }
 
     /// Iterate over this shared library's segments.
     fn segments(&self) -> Self::SegmentIter;
