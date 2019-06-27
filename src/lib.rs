@@ -301,7 +301,7 @@ pub trait SharedLibrary: Sized + Debug {
     /// Get the debug-id of this shared library if available.
     fn id(&self) -> Option<SharedLibraryId>;
 
-    /// Returns the address of where the library is loaded.
+    /// Returns the stated address of where the library is loaded.
     ///
     /// This typically is the stated virtual memory address of the first
     /// code segment but not always.  We follow the breakpad semantics for
@@ -314,6 +314,19 @@ pub trait SharedLibrary: Sized + Debug {
             .find(|x| x.is_code())
             .map(|x| x.stated_virtual_memory_address())
             .unwrap_or_else(|| Svma(usize::MAX as _))
+    }
+
+    /// Returns the actual address of where the library is loaded.
+    ///
+    /// This typically is the stated virtual memory address of the first
+    /// code segment but not always.  We follow the breakpad semantics for
+    /// what is considered the load address here so that this information
+    /// can be used to drive server side symbolication systems which are
+    /// generally working with the breakpad definition of what the image
+    /// load address is.
+    fn actual_load_addr(&self) -> Avma {
+        let bias = self.virtual_memory_bias();
+        Avma(unsafe { self.load_addr().0.offset(bias.0) })
     }
 
     /// Returns the size of the image.
