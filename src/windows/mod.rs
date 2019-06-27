@@ -17,7 +17,7 @@ use winapi::um::psapi::{
 use winapi::um::winnt::{
     IMAGE_DEBUG_DIRECTORY, IMAGE_DEBUG_TYPE_CODEVIEW, IMAGE_DIRECTORY_ENTRY_DEBUG,
     IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_HEADERS, IMAGE_NT_SIGNATURE,
-    IMAGE_SECTION_HEADER, MEMORY_BASIC_INFORMATION, MEM_COMMIT,
+    IMAGE_SCN_CNT_CODE, IMAGE_SECTION_HEADER, MEMORY_BASIC_INFORMATION, MEM_COMMIT,
 };
 
 const CV_SIGNATURE: u32 = 0x5344_5352;
@@ -51,11 +51,13 @@ impl<'a> SegmentTrait for Segment<'a> {
 
     #[inline]
     fn name(&self) -> &str {
-        std::str::from_utf8(&self.section.Name).unwrap_or("").trim_end_matches('\0')
+        std::str::from_utf8(&self.section.Name)
+            .unwrap_or("")
+            .trim_end_matches('\0')
     }
 
     fn is_code(&self) -> bool {
-        self.name() == ".text"
+        (self.section.Characteristics & IMAGE_SCN_CNT_CODE) != 0
     }
 
     #[inline]
@@ -163,10 +165,13 @@ impl<'a> SharedLibrary<'a> {
     }
 
     fn codeview_record70(&self) -> Option<&CodeViewRecord70> {
-        let bias = self.virtual_memory_bias().0;
+        let virtual_address = self.nt_headers().map_or(0, |nt_headers| {
+            nt_headers.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG as usize]
+                .VirtualAddress as isize
+        });
         unsafe {
             let debug_dictionary: *const IMAGE_DEBUG_DIRECTORY =
-                mem::transmute(self.module_base().offset(bias));
+                mem::transmute(self.module_base().offset(virtual_address));
             if debug_dictionary.is_null() || (*debug_dictionary).Type != IMAGE_DEBUG_TYPE_CODEVIEW {
                 return None;
             }
@@ -237,10 +242,11 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn virtual_memory_bias(&self) -> Bias {
-        Bias(self.nt_headers().map_or(0, |nt_headers| {
-            nt_headers.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG as usize]
-                .VirtualAddress as isize
-        }))
+        Bias(self.module_base() as isize)
+    }
+
+    fn load_addr(&self) -> Svma {
+        Svma(ptr::null())
     }
 
     fn each<F, C>(mut f: F)

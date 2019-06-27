@@ -10,13 +10,13 @@ use std::env::current_exe;
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt;
 use std::isize;
-use std::usize;
 use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::panic;
 use std::slice;
+use std::usize;
 
 use libc;
 

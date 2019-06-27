@@ -401,6 +401,13 @@ pub trait SharedLibrary: Sized + Debug {
         Svma(unsafe { address.0.offset(reverse_bias) })
     }
 
+    /// Inverse of `avma_to_svma`
+    #[inline]
+    fn svma_to_avma(&self, address: Svma) -> Avma {
+        let bias = self.virtual_memory_bias();
+        Avma(unsafe { address.0.offset(bias.0) })
+    }
+
     /// Find all shared libraries in this process and invoke `f` with each one.
     fn each<F, C>(f: F)
     where
