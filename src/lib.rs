@@ -77,13 +77,6 @@
 #![deny(missing_docs)]
 
 #[cfg(target_os = "macos")]
-#[macro_use]
-extern crate lazy_static;
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-extern crate libc;
-
-#[cfg(target_os = "macos")]
 pub mod macos;
 
 #[cfg(target_os = "linux")]
@@ -97,10 +90,10 @@ use std::usize;
 pub mod unsupported;
 
 #[cfg(target_os = "linux")]
-use linux as native_mod;
+use crate::linux as native_mod;
 
 #[cfg(target_os = "macos")]
-use macos as native_mod;
+use crate::macos as native_mod;
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 use unsupported as native_mod;
@@ -264,9 +257,9 @@ impl fmt::Display for SharedLibraryId {
         };
         for (idx, byte) in bytes.iter().enumerate() {
             if is_uuid && (idx == 4 || idx == 6 || idx == 8 || idx == 10) {
-                try!(write!(f, "-"));
+                write!(f, "-")?;
             }
-            try!(write!(f, "{:02x}", byte));
+            write!(f, "{:02x}", byte)?;
         }
         Ok(())
     }

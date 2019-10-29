@@ -1,9 +1,9 @@
 //! The fallback implementation of the [SharedLibrary
 //! trait](../trait.SharedLibrary.html) that does nothing.
 
-use super::Segment as SegmentTrait;
-use super::SharedLibrary as SharedLibraryTrait;
-use super::{Bias, IterationControl, SharedLibraryId, Svma};
+use crate::Segment as SegmentTrait;
+use crate::SharedLibrary as SharedLibraryTrait;
+use crate::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::ffi::OsStr;
 use std::marker::PhantomData;
@@ -16,7 +16,7 @@ pub struct Segment<'a> {
 }
 
 impl<'a> SegmentTrait for Segment<'a> {
-    type SharedLibrary = ::unsupported::SharedLibrary<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
 
     #[inline]
     fn name(&self) -> &str {
