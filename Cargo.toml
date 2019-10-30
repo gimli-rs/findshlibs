@@ -21,7 +21,3 @@ libc = "0.2.65"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 lazy_static = "1.4"
-
-# TODO: remove?
-[features]
-nightly = []
