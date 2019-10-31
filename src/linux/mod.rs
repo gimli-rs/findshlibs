@@ -1,8 +1,10 @@
 //! Linux-specific implementation of the `SharedLibrary` trait.
 
-use super::Segment as SegmentTrait;
-use super::SharedLibrary as SharedLibraryTrait;
-use super::{Bias, IterationControl, SharedLibraryId, Svma};
+use libc;
+
+use crate::Segment as SegmentTrait;
+use crate::SharedLibrary as SharedLibraryTrait;
+use crate::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -17,8 +19,6 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::panic;
 use std::slice;
-
-use libc;
 
 #[cfg(target_pointer_width = "32")]
 type Phdr = libc::Elf32_Phdr;
@@ -38,7 +38,7 @@ struct Nhdr32 {
 #[derive(Debug)]
 pub struct Segment<'a> {
     phdr: *const Phdr,
-    shlib: PhantomData<&'a ::linux::SharedLibrary<'a>>,
+    shlib: PhantomData<&'a SharedLibrary<'a>>,
 }
 
 impl<'a> Segment<'a> {
@@ -54,7 +54,7 @@ impl<'a> Segment<'a> {
 }
 
 impl<'a> SegmentTrait for Segment<'a> {
-    type SharedLibrary = ::linux::SharedLibrary<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
 
     fn name(&self) -> &str {
         unsafe {
@@ -102,7 +102,7 @@ impl<'a> SegmentTrait for Segment<'a> {
 
 /// An iterator of mapped segments in a shared library.
 pub struct SegmentIter<'a> {
-    inner: ::std::slice::Iter<'a, Phdr>,
+    inner: std::slice::Iter<'a, Phdr>,
 }
 
 impl<'a> Iterator for SegmentIter<'a> {
@@ -137,7 +137,7 @@ pub struct SharedLibrary<'a> {
 
 struct IterState<F> {
     f: F,
-    panic: Option<Box<Any + Send>>,
+    panic: Option<Box<dyn Any + Send>>,
     idx: usize,
 }
 
@@ -360,8 +360,8 @@ impl<'a> fmt::Debug for DebugPhdr<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{IterationControl, Segment, SharedLibrary};
-    use linux;
+    use crate::{IterationControl, Segment, SharedLibrary};
+    use crate::linux;
 
     #[test]
     fn have_libc() {

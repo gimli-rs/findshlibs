@@ -3,11 +3,12 @@ authors = ["Nick Fitzgerald <fitzgen@gmail.com>"]
 description = "Find the set of shared libraries loaded in the current process with a cross platform API"
 documentation = "https://docs.rs/findshlibs"
 keywords = ["dyld", "dylib", "shared", "library", "dl_iterate_phdr"]
-license = "Apache-2.0/MIT"
+license = "MIT OR Apache-2.0"
 name = "findshlibs"
 readme = "./README.md"
 repository = "https://github.com/gimli-rs/findshlibs"
-version = "0.5.0"
+version = "0.6.0"
+edition = "2018"
 
 [badges.coveralls]
 repository = "gimli-rs/findshlibs"
@@ -16,8 +17,7 @@ repository = "gimli-rs/findshlibs"
 repository = "gimli-rs/findshlibs"
 
 [dependencies]
-lazy_static = "1.0.0"
-libc = "0.2.55"
+libc = "0.2.65"
 
-[features]
-nightly = []
+[target.'cfg(target_os = "macos")'.dependencies]
+lazy_static = "1.4"

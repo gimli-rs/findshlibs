@@ -2,9 +2,12 @@
 //! trait](../trait.SharedLibrary.html).
 #![allow(clippy::cast_ptr_alignment)]
 
-use super::Segment as SegmentTrait;
-use super::SharedLibrary as SharedLibraryTrait;
-use super::{Bias, IterationControl, SharedLibraryId, Svma};
+use libc;
+use lazy_static::lazy_static;
+
+use crate::Segment as SegmentTrait;
+use crate::SharedLibrary as SharedLibraryTrait;
+use crate::{Bias, IterationControl, SharedLibraryId, Svma};
 
 use std::ffi::{CStr, OsStr};
 use std::fmt;
@@ -12,8 +15,6 @@ use std::marker::PhantomData;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::Mutex;
 use std::usize;
-
-use libc;
 
 const LC_UUID: u32 = 27;
 
@@ -53,7 +54,7 @@ impl<'a> fmt::Debug for Segment<'a> {
 }
 
 impl<'a> SegmentTrait for Segment<'a> {
-    type SharedLibrary = ::macos::SharedLibrary<'a>;
+    type SharedLibrary = SharedLibrary<'a>;
 
     #[inline]
     fn name(&self) -> &str {
@@ -308,8 +309,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{IterationControl, Segment, SharedLibrary};
-    use macos;
+    use crate::{IterationControl, Segment, SharedLibrary};
+    use crate::macos;
 
     #[test]
     fn have_libdyld() {

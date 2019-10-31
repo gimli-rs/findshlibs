@@ -12,6 +12,8 @@ rust:
 - nightly
 - beta
 - stable
+- 1.31.0
+cache: cargo
 
 addons:
   sources:
@@ -27,6 +29,8 @@ addons:
 before_install:
 - source ./ci/before_install.sh
 
+matrix:
+  fast_finish: true
 env:
   matrix:
   - PROFILE="--release"
