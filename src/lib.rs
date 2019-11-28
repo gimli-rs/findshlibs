@@ -84,7 +84,6 @@ pub mod linux;
 
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
-use std::ptr;
 use std::usize;
 
 pub mod unsupported;
@@ -152,23 +151,23 @@ simple_newtypes! {
     /// Stated virtual memory address.
     ///
     /// See the module documentation for details.
-    type Svma = *const u8
+    type Svma = usize
     where
-        default = ptr::null(),
-        display = "{:p}";
+        default = 0,
+        display = "{:#x}";
 
     /// Actual virtual memory address.
     ///
     /// See the module documentation for details.
-    type Avma = *const u8
+    type Avma = usize
     where
-        default = ptr::null(),
-        display = "{:p}";
+        default = 0,
+        display = "{:#x}";
 
     /// Virtual memory bias.
     ///
     /// See the module documentation for details.
-    type Bias = isize
+    type Bias = usize
     where
         default = 0,
         display = "{:#x}";
@@ -208,24 +207,24 @@ pub trait Segment: Sized + Debug {
     fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
         let svma = self.stated_virtual_memory_address();
         let bias = shlib.virtual_memory_bias();
-        Avma(unsafe { svma.0.offset(bias.0) })
+        Avma(svma.0 + bias.0 )
     }
 
     /// Does this segment contain the given address?
     #[inline]
     fn contains_svma(&self, address: Svma) -> bool {
-        let start = self.stated_virtual_memory_address().0 as usize;
+        let start = self.stated_virtual_memory_address().0;
         let end = start + self.len();
-        let address = address.0 as usize;
+        let address = address.0;
         start <= address && address < end
     }
 
     /// Does this segment contain the given address?
     #[inline]
     fn contains_avma(&self, shlib: &Self::SharedLibrary, address: Avma) -> bool {
-        let start = self.actual_virtual_memory_address(shlib).0 as usize;
+        let start = self.actual_virtual_memory_address(shlib).0;
         let end = start + self.len();
-        let address = address.0 as usize;
+        let address = address.0;
         start <= address && address < end
     }
 }
@@ -335,8 +334,7 @@ pub trait SharedLibrary: Sized + Debug {
     #[inline]
     fn avma_to_svma(&self, address: Avma) -> Svma {
         let bias = self.virtual_memory_bias();
-        let reverse_bias = -bias.0;
-        Svma(unsafe { address.0.offset(reverse_bias) })
+        Svma(address.0 - bias.0)
     }
 
     /// Find all shared libraries in this process and invoke `f` with each one.

@@ -11,14 +11,13 @@ use std::borrow::Cow;
 use std::env::current_exe;
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt;
-use std::isize;
-use std::usize;
 use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::panic;
 use std::slice;
+use std::usize;
 
 #[cfg(target_pointer_width = "32")]
 type Phdr = libc::Elf32_Phdr;
@@ -273,8 +272,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn virtual_memory_bias(&self) -> Bias {
-        assert!((self.addr as usize) < (isize::MAX as usize));
-        Bias(self.addr as usize as isize)
+        Bias(self.addr as usize)
     }
 
     fn load_addr(&self) -> Svma {
@@ -360,8 +358,8 @@ impl<'a> fmt::Debug for DebugPhdr<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{IterationControl, Segment, SharedLibrary};
     use crate::linux;
+    use crate::{IterationControl, Segment, SharedLibrary};
 
     #[test]
     fn have_libc() {
