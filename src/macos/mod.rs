@@ -73,10 +73,10 @@ impl<'a> SegmentTrait for Segment<'a> {
     #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
         match *self {
-            Segment::Segment32(seg) => Svma(seg.vmaddr as usize as *const u8),
+            Segment::Segment32(seg) => Svma(seg.vmaddr as usize),
             Segment::Segment64(seg) => {
                 assert!(seg.vmaddr <= (usize::MAX as u64));
-                Svma(seg.vmaddr as usize as *const u8)
+                Svma(seg.vmaddr as usize)
             }
         }
     }
@@ -199,7 +199,7 @@ impl<'a> MachHeader<'a> {
 /// `<mach-o/dyld.h>` header.
 pub struct SharedLibrary<'a> {
     header: MachHeader<'a>,
-    slide: isize,
+    slide: usize,
     name: &'a CStr,
 }
 
@@ -213,7 +213,7 @@ impl<'a> fmt::Debug for SharedLibrary<'a> {
 }
 
 impl<'a> SharedLibrary<'a> {
-    fn new(header: MachHeader<'a>, slide: isize, name: &'a CStr) -> Self {
+    fn new(header: MachHeader<'a>, slide: usize, name: &'a CStr) -> Self {
         SharedLibrary {
             header: header,
             slide: slide,
@@ -296,7 +296,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 );
 
                 let name = unsafe { CStr::from_ptr(name) };
-                let shlib = SharedLibrary::new(header, slide, name);
+                let shlib = SharedLibrary::new(header, slide as usize, name);
 
                 match f(&shlib).into() {
                     IterationControl::Break => break,
