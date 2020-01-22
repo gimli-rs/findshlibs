@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::env::current_exe;
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt;
+use std::iter;
 use std::marker::PhantomData;
 use std::mem;
 use std::os::unix::ffi::OsStrExt;
@@ -27,7 +28,12 @@ type Phdr = libc::Elf64_Phdr;
 
 const NT_GNU_BUILD_ID: u32 = 3;
 
-struct Nhdr32 {
+// Normally we would use `Elf32_Nhdr` on 32-bit platforms and `Elf64_Nhdr` on
+// 64-bit platforms. However, in practice it seems that only `Elf32_Nhdr` is
+// used, and reading through binutil's `readelf` source confirms this.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+struct Nhdr {
     pub n_namesz: libc::Elf32_Word,
     pub n_descsz: libc::Elf32_Word,
     pub n_type: libc::Elf32_Word,
@@ -41,14 +47,100 @@ pub struct Segment<'a> {
 }
 
 impl<'a> Segment<'a> {
+    fn phdr(&self) -> &'a Phdr {
+        unsafe { self.phdr.as_ref().unwrap() }
+    }
+
+    /// You must pass this segment's `SharedLibrary` or else this is wild UB.
+    unsafe fn data(&self, shlib: &SharedLibrary<'a>) -> &'a [u8] {
+        let phdr = self.phdr();
+        let avma = (shlib.addr as usize).wrapping_add(phdr.p_vaddr as usize);
+        slice::from_raw_parts(avma as *const u8, phdr.p_memsz as usize)
+    }
+
     fn is_load(&self) -> bool {
-        unsafe {
-            let hdr = self.phdr.as_ref().unwrap();
-            match hdr.p_type {
-                libc::PT_LOAD => true,
-                _ => false,
+        self.phdr().p_type == libc::PT_LOAD
+    }
+
+    fn is_note(&self) -> bool {
+        self.phdr().p_type == libc::PT_NOTE
+    }
+
+    /// Parse the contents of a `PT_NOTE` segment.
+    ///
+    /// Returns a triple of
+    ///
+    /// 1. The `NT_*` note type.
+    /// 2. The note name.
+    /// 3. The note descriptor payload.
+    ///
+    /// You must pass this segment's `SharedLibrary` or else this is wild UB.
+    unsafe fn notes(
+        &self,
+        shlib: &SharedLibrary<'a>,
+    ) -> impl Iterator<Item = (libc::Elf32_Word, &'a [u8], &'a [u8])> {
+        assert!(self.is_note());
+
+        // `man 5 readelf` says that all of the `Nhdr`, name, and descriptor are
+        // always 4-byte aligned, but we copy this alignment behavior from
+        // `readelf` since that seems to match reality in practice.
+        let alignment = std::cmp::max(self.phdr().p_align as usize, 4);
+        let align_up = move |data: &'a [u8]| {
+            if alignment != 4 && alignment != 8 {
+                return None;
             }
-        }
+
+            let ptr = data.as_ptr() as usize;
+            let alignment_minus_one = alignment - 1;
+            let aligned_ptr = ptr.checked_add(alignment_minus_one)? & !alignment_minus_one;
+            let diff = aligned_ptr - ptr;
+            if data.len() < diff {
+                None
+            } else {
+                Some(&data[diff..])
+            }
+        };
+
+        let mut data = self.data(shlib);
+
+        iter::from_fn(move || {
+            assert_eq!(data.as_ptr() as usize % alignment, 0);
+
+            // Each entry in a `PT_NOTE` segment begins with a
+            // fixed-size header `Nhdr`.
+            let nhdr_size = mem::size_of::<Nhdr>();
+            let nhdr = try_split_at(&mut data, nhdr_size)?;
+            let nhdr = (nhdr.as_ptr() as *const Nhdr).as_ref().unwrap();
+
+            // No need to `align_up` after the `Nhdr`.
+            debug_assert_eq!(nhdr_size % alignment, 0);
+
+            // It is followed by a name of size `n_namesz`.
+            let name_size = nhdr.n_namesz as usize;
+            let name = try_split_at(&mut data, name_size)?;
+
+            // And after that is the note's (aligned) descriptor payload of size
+            // `n_descsz`.
+            data = align_up(data)?;
+            let desc_size = nhdr.n_descsz as usize;
+            let desc = try_split_at(&mut data, desc_size)?;
+
+            // Align the data for the next `Nhdr`.
+            data = align_up(data)?;
+
+            Some((nhdr.n_type, name, desc))
+        })
+        .fuse()
+    }
+}
+
+fn try_split_at<'a>(data: &mut &'a [u8], index: usize) -> Option<&'a [u8]> {
+    if data.len() < index {
+        None
+    } else {
+        let (head, tail) = data.split_at(index);
+        *data = tail;
+        Some(head)
     }
 }
 
@@ -204,6 +296,10 @@ impl<'a> SharedLibrary<'a> {
             }
         }
     }
+
+    fn note_segments(&self) -> impl Iterator<Item = Segment<'a>> {
+        self.segments().filter(|s| s.is_note())
+    }
 }
 
 impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
@@ -216,46 +312,14 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     }
 
     fn id(&self) -> Option<SharedLibraryId> {
-        fn align(alignment: usize, offset: &mut usize) {
-            let diff = *offset % alignment;
-            if diff != 0 {
-                *offset += alignment - diff;
-            }
-        }
-
-        unsafe {
-            for segment in self.segments() {
-                let phdr = segment.phdr.as_ref().unwrap();
-                if phdr.p_type != libc::PT_NOTE {
-                    continue;
-                }
-
-                let mut alignment = phdr.p_align as usize;
-                // same logic as in gimli which took it from readelf
-                if alignment < 4 {
-                    alignment = 4;
-                } else if alignment != 4 && alignment != 8 {
-                    continue;
-                }
-
-                let mut offset = phdr.p_offset as usize;
-                let end = offset + phdr.p_filesz as usize;
-
-                while offset < end {
-                    // we always use an nhdr32 here as 64bit notes have not
-                    // been observed in practice.
-                    let nhdr = &*((self.addr as usize + offset) as *const Nhdr32);
-                    offset += mem::size_of_val(nhdr);
-                    offset += nhdr.n_namesz as usize;
-                    align(alignment, &mut offset);
-                    let value =
-                        slice::from_raw_parts(self.addr.add(offset), nhdr.n_descsz as usize);
-                    offset += nhdr.n_descsz as usize;
-                    align(alignment, &mut offset);
-
-                    if nhdr.n_type as u32 == NT_GNU_BUILD_ID {
-                        return Some(SharedLibraryId::GnuBuildId(value.to_vec()));
-                    }
+        // Search for `PT_NOTE` segments, containing auxilliary information.
+        // Such segments contain a series of "notes" and one kind of note is
+        // `NT_GNU_BUILD_ID`, whose payload contains a unique identifier
+        // generated by the linker. Return the first one we find, if any.
+        for segment in self.note_segments() {
+            for (note_type, note_name, note_descriptor) in unsafe { segment.notes(self) } {
+                if note_type == NT_GNU_BUILD_ID && note_name == b"GNU\0" {
+                    return Some(SharedLibraryId::GnuBuildId(note_descriptor.to_vec()));
                 }
             }
         }
