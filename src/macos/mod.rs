@@ -2,8 +2,8 @@
 //! trait](../trait.SharedLibrary.html).
 #![allow(clippy::cast_ptr_alignment)]
 
-use libc;
 use lazy_static::lazy_static;
+use libc;
 
 use crate::Segment as SegmentTrait;
 use crate::SharedLibrary as SharedLibraryTrait;
@@ -309,8 +309,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{IterationControl, Segment, SharedLibrary};
     use crate::macos;
+    use crate::{IterationControl, Segment, SharedLibrary};
 
     #[test]
     fn have_libdyld() {
