@@ -58,10 +58,6 @@ impl<'a> Segment<'a> {
         slice::from_raw_parts(avma as *const u8, phdr.p_memsz as usize)
     }
 
-    fn is_load(&self) -> bool {
-        self.phdr().p_type == libc::PT_LOAD
-    }
-
     fn is_note(&self) -> bool {
         self.phdr().p_type == libc::PT_NOTE
     }
@@ -170,24 +166,24 @@ impl<'a> SegmentTrait for Segment<'a> {
 
     #[inline]
     fn is_code(&self) -> bool {
-        unsafe {
-            let hdr = self.phdr.as_ref().unwrap();
-            match hdr.p_type {
-                // 0x1 is PT_X for executable
-                libc::PT_LOAD => (hdr.p_flags & 0x1) != 0,
-                _ => false,
-            }
-        }
+        let hdr = self.phdr();
+        // 0x1 is PT_X for executable
+        hdr.p_type == libc::PT_LOAD && (hdr.p_flags & 0x1) != 0
+    }
+
+    #[inline]
+    fn is_load(&self) -> bool {
+        self.phdr().p_type == libc::PT_LOAD
     }
 
     #[inline]
     fn stated_virtual_memory_address(&self) -> Svma {
-        Svma(unsafe { (*self.phdr).p_vaddr as _ })
+        Svma(self.phdr().p_vaddr as _)
     }
 
     #[inline]
     fn len(&self) -> usize {
-        unsafe { (*self.phdr).p_memsz as _ }
+        self.phdr().p_memsz as _
     }
 }
 
@@ -337,21 +333,6 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn virtual_memory_bias(&self) -> Bias {
         Bias(self.addr as usize)
-    }
-
-    fn load_addr(&self) -> Svma {
-        self.segments()
-            .find(|x| x.is_load())
-            .map(|x| x.stated_virtual_memory_address())
-            .unwrap_or_else(|| Svma(usize::MAX as _))
-    }
-
-    fn len(&self) -> usize {
-        self.segments()
-            .skip_while(|x| !x.is_load())
-            .take_while(|x| x.is_load())
-            .map(|x| x.len())
-            .sum()
     }
 
     #[inline]
