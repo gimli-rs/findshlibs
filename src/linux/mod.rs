@@ -112,9 +112,7 @@ impl<'a> Segment<'a> {
             let nhdr = try_split_at(&mut data, nhdr_size)?;
             let nhdr = (nhdr.as_ptr() as *const Nhdr).as_ref().unwrap();
 
-            // No need to `align_up` after the `Nhdr`.
-            debug_assert_eq!(nhdr_size % alignment, 0);
-
+            // No need to `align_up` after the `Nhdr`
             // It is followed by a name of size `n_namesz`.
             let name_size = nhdr.n_namesz as usize;
             let name = try_split_at(&mut data, name_size)?;
