@@ -188,6 +188,12 @@ pub trait Segment: Sized + Debug {
         false
     }
 
+    /// Returns `true` if this is a segment loaded into memory.
+    #[inline]
+    fn is_load(&self) -> bool {
+        self.is_code()
+    }
+
     /// Get this segment's stated virtual address of this segment.
     ///
     /// This is the virtual memory address without the bias applied. See the
@@ -207,7 +213,7 @@ pub trait Segment: Sized + Debug {
     fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
         let svma = self.stated_virtual_memory_address();
         let bias = shlib.virtual_memory_bias();
-        Avma(svma.0 + bias.0 )
+        Avma(svma.0 + bias.0)
     }
 
     /// Does this segment contain the given address?
@@ -293,19 +299,35 @@ pub trait SharedLibrary: Sized + Debug {
     /// Get the debug-id of this shared library if available.
     fn id(&self) -> Option<SharedLibraryId>;
 
-    /// Returns the address of where the library is loaded.
+    /// Returns the address of where the library is loaded into virtual
+    /// memory.
     ///
-    /// This typically is the stated virtual memory address of the first
-    /// code segment but not always.  We follow the breakpad semantics for
-    /// what is considered the load address here so that this information
-    /// can be used to drive server side symbolication systems which are
-    /// generally working with the breakpad definition of what the image
-    /// load address is.
-    fn load_addr(&self) -> Svma {
+    /// This address maps to the `Avma` of the first segment loaded into
+    /// memory. Depending on the platform, this segment may not contain code.
+    fn actual_load_addr(&self) -> Avma {
         self.segments()
-            .find(|x| x.is_code())
+            .find(|x| x.is_load())
+            .map(|x| x.actual_virtual_memory_address(self))
+            .unwrap_or(Avma(usize::MAX))
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    #[deprecated(note = "use stated_load_address() instead")]
+    fn load_addr(&self) -> Svma {
+        self.stated_load_addr()
+    }
+
+    /// Returns the address of where the library prefers to be loaded into
+    /// virtual memory.
+    ///
+    /// This address maps to the `Svma` of the first segment loaded into
+    /// memory. Depending on the platform, this segment may not contain code.
+    fn stated_load_addr(&self) -> Svma {
+        self.segments()
+            .find(|x| x.is_load())
             .map(|x| x.stated_virtual_memory_address())
-            .unwrap_or_else(|| Svma(usize::MAX as _))
+            .unwrap_or(Svma(usize::MAX))
     }
 
     /// Returns the size of the image.
@@ -314,11 +336,14 @@ pub trait SharedLibrary: Sized + Debug {
     /// normally used by server side symbolication systems to determine when
     /// an IP no longer falls into an image.
     fn len(&self) -> usize {
-        self.segments()
-            .skip_while(|x| !x.is_code())
-            .take_while(|x| x.is_code())
-            .map(|x| x.len())
-            .sum()
+        let end_address = self
+            .segments()
+            .filter(|x| x.is_load())
+            .map(|x| x.actual_virtual_memory_address(self).0 + x.len())
+            .max()
+            .unwrap_or(usize::MAX);
+
+        end_address - self.actual_load_addr().0
     }
 
     /// Iterate over this shared library's segments.
@@ -380,5 +405,14 @@ mod tests {
                 assert_eq!(*any.downcast_ref::<&'static str>().unwrap(), "uh oh");
             }
         }
+    }
+
+    #[test]
+    fn test_load_address_bias() {
+        TargetSharedLibrary::each(|lib| {
+            let svma = lib.stated_load_addr();
+            let avma = lib.actual_load_addr();
+            assert_eq!(lib.avma_to_svma(avma), svma);
+        });
     }
 }
