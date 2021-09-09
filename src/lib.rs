@@ -73,7 +73,7 @@
 //! >   text section (for example), we can compute the AVMAs of all of
 //! >   its text symbols by adding the bias to their SVMAs.
 //!
-//! [LUL]: http://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
+//! [LUL]: https://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
 #![deny(missing_docs)]
 
 #[cfg(target_os = "macos")]
