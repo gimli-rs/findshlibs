@@ -65,7 +65,7 @@ impl<'a> SegmentTrait for Segment<'a> {
 
     #[inline]
     fn len(&self) -> usize {
-        self.section.SizeOfRawData as usize
+        *unsafe { self.section.Misc.VirtualSize() } as usize
     }
 }
 
