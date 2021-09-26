@@ -136,7 +136,7 @@ impl<'a> SharedLibrary<'a> {
     }
 
     fn dos_header(&self) -> Option<&IMAGE_DOS_HEADER> {
-        let header: &IMAGE_DOS_HEADER = unsafe { mem::transmute(self.module_base()) };
+        let header: &IMAGE_DOS_HEADER = unsafe { &*(self.module_base() as *const _) };
         if header.e_magic == IMAGE_DOS_SIGNATURE {
             Some(header)
         } else {
@@ -147,7 +147,7 @@ impl<'a> SharedLibrary<'a> {
     fn nt_headers(&self) -> Option<&IMAGE_NT_HEADERS> {
         self.dos_header().and_then(|dos_header| {
             let nt_headers: &IMAGE_NT_HEADERS =
-                unsafe { mem::transmute(self.module_base().offset(dos_header.e_lfanew as isize)) };
+                unsafe { &*(self.module_base().offset(dos_header.e_lfanew as isize) as *const _) };
             if nt_headers.Signature == IMAGE_NT_SIGNATURE {
                 Some(nt_headers)
             } else {

@@ -282,7 +282,7 @@ impl SharedLibraryId {
     pub fn as_bytes(&self) -> &[u8] {
         match *self {
             SharedLibraryId::Uuid(ref bytes) => &*bytes,
-            SharedLibraryId::GnuBuildId(ref bytes) => &bytes,
+            SharedLibraryId::GnuBuildId(ref bytes) => bytes,
             SharedLibraryId::PeSignature(_, _) => &[][..],
             SharedLibraryId::PdbSignature(ref bytes, _) => &*bytes,
         }
@@ -293,7 +293,7 @@ impl fmt::Display for SharedLibraryId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let (bytes, is_uuid): (&[u8], _) = match *self {
             SharedLibraryId::Uuid(ref bytes) => (&*bytes, true),
-            SharedLibraryId::GnuBuildId(ref bytes) => (&bytes, false),
+            SharedLibraryId::GnuBuildId(ref bytes) => (bytes, false),
             SharedLibraryId::PeSignature(timestamp, size_of_image) => {
                 return write!(f, "{:08X}{:x}", timestamp, size_of_image);
             }
