@@ -156,26 +156,48 @@ impl<'a> SharedLibrary<'a> {
         })
     }
 
+    fn debug_directories(&self) -> &[IMAGE_DEBUG_DIRECTORY] {
+        self.nt_headers().map_or(&[], |nt_headers| {
+            if nt_headers.OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG as u32 {
+                return &[];
+            }
+            let data_dir =
+                nt_headers.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG as usize];
+            if data_dir.VirtualAddress == 0 {
+                return &[];
+            }
+            let size = data_dir.Size as usize;
+            if size % mem::size_of::<IMAGE_DEBUG_DIRECTORY>() != 0 {
+                return &[];
+            }
+            let nb_dirs = size / mem::size_of::<IMAGE_DEBUG_DIRECTORY>();
+            unsafe {
+                slice::from_raw_parts(
+                    self.module_base().offset(data_dir.VirtualAddress as isize) as *const _,
+                    nb_dirs,
+                )
+            }
+        })
+    }
+
     fn codeview_record70(&self) -> Option<&CodeViewRecord70> {
-        let virtual_address = self.nt_headers().map_or(0, |nt_headers| {
-            nt_headers.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG as usize]
-                .VirtualAddress as isize
-        });
-        unsafe {
-            let debug_dictionary: *const IMAGE_DEBUG_DIRECTORY =
-                mem::transmute(self.module_base().offset(virtual_address));
-            if debug_dictionary.is_null() || (*debug_dictionary).Type != IMAGE_DEBUG_TYPE_CODEVIEW {
+        self.debug_directories().iter().find_map(|debug_directory| {
+            if debug_directory.Type != IMAGE_DEBUG_TYPE_CODEVIEW {
                 return None;
             }
-            let debug_info: *const CodeViewRecord70 = mem::transmute(
-                self.module_base()
-                    .offset((*debug_dictionary).AddressOfRawData as isize),
-            );
-            if debug_info.is_null() || (*debug_info).signature != CV_SIGNATURE {
-                return None;
+
+            let debug_info: &CodeViewRecord70 = unsafe {
+                &*(self
+                    .module_base()
+                    .offset(debug_directory.AddressOfRawData as isize)
+                    as *const _)
+            };
+            if debug_info.signature == CV_SIGNATURE {
+                Some(debug_info)
+            } else {
+                None
             }
-            Some(&*debug_info)
-        }
+        })
     }
 }
 
