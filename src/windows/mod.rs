@@ -99,7 +99,9 @@ struct CodeViewRecord70 {
     signature: u32,
     pdb_signature: GUID,
     pdb_age: u32,
-    pdb_filename: [u8; 1],
+    // This struct has a flexible array containing a UTF-8 \0-terminated string.
+    // This is only represented by its first byte here.
+    pdb_filename: c_char,
 }
 
 /// A shared library on Windows.
@@ -212,9 +214,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn debug_name(&self) -> Option<&OsStr> {
-        self.codeview_record70().and_then(|codeview| unsafe {
-            let bytes: *const i8 = mem::transmute(&codeview.pdb_filename);
-            let cstr = CStr::from_ptr(bytes);
+        self.codeview_record70().and_then(|codeview| {
+            let cstr = unsafe { CStr::from_ptr(&codeview.pdb_filename as *const _) };
             if let Ok(s) = cstr.to_str() {
                 Some(OsStr::new(s))
             } else {
