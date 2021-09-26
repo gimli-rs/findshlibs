@@ -236,7 +236,10 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
     #[inline]
     fn debug_id(&self) -> Option<SharedLibraryId> {
         self.codeview_record70().map(|codeview| unsafe {
-            SharedLibraryId::PdbSignature(mem::transmute(codeview.pdb_signature), codeview.pdb_age)
+            SharedLibraryId::PdbSignature(
+                *(&codeview.pdb_signature as *const GUID as *const [u8; 16]),
+                codeview.pdb_age,
+            )
         })
     }
 

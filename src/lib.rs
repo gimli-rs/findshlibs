@@ -273,7 +273,7 @@ pub enum SharedLibraryId {
     GnuBuildId(Vec<u8>),
     /// The PE timestamp and size
     PeSignature(u32, u32),
-    /// A PDB signature and age,
+    /// A PDB GUID and age,
     PdbSignature([u8; 16], u32),
 }
 
@@ -291,24 +291,32 @@ impl SharedLibraryId {
 
 impl fmt::Display for SharedLibraryId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let (bytes, is_uuid): (&[u8], _) = match *self {
-            SharedLibraryId::Uuid(ref bytes) => (&*bytes, true),
-            SharedLibraryId::GnuBuildId(ref bytes) => (bytes, false),
+        match *self {
+            SharedLibraryId::Uuid(ref bytes) => {
+                for (idx, byte) in bytes.iter().enumerate() {
+                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
+                        write!(f, "-")?;
+                    }
+                    write!(f, "{:02x}", byte)?;
+                }
+            }
+            SharedLibraryId::GnuBuildId(ref bytes) => {
+                for byte in bytes {
+                    write!(f, "{:02x}", byte)?;
+                }
+            }
             SharedLibraryId::PeSignature(timestamp, size_of_image) => {
-                return write!(f, "{:08X}{:x}", timestamp, size_of_image);
+                write!(f, "{:08X}{:x}", timestamp, size_of_image)?;
             }
             SharedLibraryId::PdbSignature(ref bytes, age) => {
-                for byte in bytes.iter() {
+                for (idx, byte) in bytes.iter().enumerate() {
+                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
+                        write!(f, "-")?;
+                    }
                     write!(f, "{:02X}", byte)?;
                 }
-                return write!(f, "{:x}", age);
+                write!(f, "{:x}", age)?;
             }
-        };
-        for (idx, byte) in bytes.iter().enumerate() {
-            if is_uuid && (idx == 4 || idx == 6 || idx == 8 || idx == 10) {
-                write!(f, "-")?;
-            }
-            write!(f, "{:02x}", byte)?;
         }
         Ok(())
     }
