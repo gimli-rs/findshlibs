@@ -288,13 +288,13 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         for module in modules.iter_mut() {
             unsafe {
                 let mut module_path = vec![0u16; MAX_PATH + 1];
-                if GetModuleFileNameExW(
+                let module_path_len = GetModuleFileNameExW(
                     proc,
                     *module,
                     module_path.as_mut_ptr(),
                     MAX_PATH as u32 + 1,
-                ) == 0
-                {
+                ) as usize;
+                if module_path_len == 0 {
                     continue;
                 }
 
@@ -327,9 +327,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                     mem::size_of::<MEMORY_BASIC_INFORMATION>(),
                 ) == mem::size_of::<MEMORY_BASIC_INFORMATION>()
                 {
-                    let module_path = OsString::from_wide(
-                        &module_path[..module_path.iter().position(|x| *x == 0).unwrap_or(0)],
-                    );
+                    let module_path = OsString::from_wide(&module_path[..module_path_len]);
                     if vmem_info.State == MEM_COMMIT {
                         let shlib = SharedLibrary::new(module_info, module_path);
                         match f(&shlib).into() {
