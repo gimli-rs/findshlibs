@@ -299,7 +299,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 }
 
                 let mut module_info = mem::zeroed();
-                if !GetModuleInformation(
+                if GetModuleInformation(
                     proc,
                     *module,
                     &mut module_info,
