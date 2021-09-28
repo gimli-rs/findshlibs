@@ -14,7 +14,6 @@ use std::slice;
 use std::usize;
 
 use winapi::ctypes::c_char;
-use winapi::shared::guiddef::GUID;
 use winapi::shared::minwindef::{HMODULE, MAX_PATH};
 use winapi::um::libloaderapi::{FreeLibrary, LoadLibraryExW, LOAD_LIBRARY_AS_DATAFILE};
 use winapi::um::memoryapi::VirtualQuery;
@@ -28,6 +27,7 @@ use winapi::um::winnt::{
     IMAGE_SCN_CNT_CODE, IMAGE_SECTION_HEADER, MEMORY_BASIC_INFORMATION, MEM_COMMIT,
 };
 
+// This is 'RSDS'.
 const CV_SIGNATURE: u32 = 0x5344_5352;
 
 /// An unsupported segment
@@ -71,7 +71,7 @@ impl<'a> SegmentTrait for Segment<'a> {
 
 /// An iterator over PE sections.
 pub struct SegmentIter<'a> {
-    sections: &'a [IMAGE_SECTION_HEADER],
+    sections: std::slice::Iter<'a, IMAGE_SECTION_HEADER>,
 }
 
 impl<'a> fmt::Debug for SegmentIter<'a> {
@@ -84,20 +84,16 @@ impl<'a> Iterator for SegmentIter<'a> {
     type Item = Segment<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.sections.is_empty() {
-            None
-        } else {
-            let section = &self.sections[0];
-            self.sections = &self.sections[1..];
-            Some(Segment { section })
-        }
+        self.sections.next().map(|section| Segment {
+            section
+        })
     }
 }
 
 #[repr(C)]
 struct CodeViewRecord70 {
     signature: u32,
-    pdb_signature: GUID,
+    pdb_signature: [u8; 16],
     pdb_age: u32,
     // This struct has a flexible array containing a UTF-8 \0-terminated string.
     // This is only represented by its first byte here.
@@ -235,9 +231,9 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn debug_id(&self) -> Option<SharedLibraryId> {
-        self.codeview_record70().map(|codeview| unsafe {
+        self.codeview_record70().map(|codeview| {
             SharedLibraryId::PdbSignature(
-                *(&codeview.pdb_signature as *const GUID as *const [u8; 16]),
+                codeview.pdb_signature,
                 codeview.pdb_age,
             )
         })
@@ -253,7 +249,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
             )
         });
         SegmentIter {
-            sections: sections.unwrap_or(&[][..]),
+            sections: sections.unwrap_or(&[][..]).iter(),
         }
     }
 
@@ -285,12 +281,12 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
         modules.truncate(modules_size as usize / mem::size_of::<HMODULE>());
 
-        for module in modules.iter_mut() {
+        for module in modules {
             unsafe {
                 let mut module_path = vec![0u16; MAX_PATH + 1];
                 let module_path_len = GetModuleFileNameExW(
                     proc,
-                    *module,
+                    module,
                     module_path.as_mut_ptr(),
                     MAX_PATH as u32 + 1,
                 ) as usize;
@@ -301,7 +297,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 let mut module_info = mem::zeroed();
                 if GetModuleInformation(
                     proc,
-                    *module,
+                    module,
                     &mut module_info,
                     mem::size_of::<MODULEINFO>() as u32,
                 ) == 0

@@ -91,7 +91,7 @@
 //! > * `name` is the name of the executable.  On most operating systems (and
 //! >   all systems implemented currently) this is not just the name but in fact
 //! >   the entire path to the executable.
-//! > * `debug_name` refers to the debug file if it's different.  This is again
+//! > * `debug_name` is the name of the debug file if known.  This is again
 //! >   the case on windows where this will be the path to the PDB file.
 #![deny(missing_docs)]
 
@@ -356,7 +356,7 @@ pub trait SharedLibrary: Sized + Debug {
 
     /// Get the debug-id of this shared library if available.
     fn debug_id(&self) -> Option<SharedLibraryId> {
-        None
+        self.id()
     }
 
     /// Returns the address of where the library is loaded into virtual
