@@ -35,6 +35,7 @@
 //!
 //! * Linux
 //! * macOS
+//! * Windows
 //!
 //! If a platform is not supported then a fallback implementation is used that
 //! does nothing.  To see if your platform does something at runtime the
@@ -74,6 +75,24 @@
 //! >   its text symbols by adding the bias to their SVMAs.
 //!
 //! [LUL]: https://searchfox.org/mozilla-central/rev/13148faaa91a1c823a7d68563d9995480e714979/tools/profiler/lul/LulMain.h#17-51
+//!
+//! ## Names and IDs
+//!
+//! `findshlibs` also gives access to module names and IDs.  Since this is also
+//! not consistent across operating systems the following general rules apply:
+//!
+//! > * `id` refers to the ID of the object file itself.  This is generally
+//! >   available on all platforms however it might still not be compiled into
+//! >   the binary in all case.  For instance on Linux the `gnu.build-id` note
+//! >   needs to be compiled in (which Rust does automatically).
+//! > * `debug_id` refers to the ID of the debug file.  This only plays a role
+//! >   on Windows where the executable and the debug file (PDB) have a different
+//! >   ID.
+//! > * `name` is the name of the executable.  On most operating systems (and
+//! >   all systems implemented currently) this is not just the name but in fact
+//! >   the entire path to the executable.
+//! > * `debug_name` is the name of the debug file if known.  This is again
+//! >   the case on windows where this will be the path to the PDB file.
 #![deny(missing_docs)]
 
 #[cfg(target_os = "macos")]
@@ -81,6 +100,9 @@ pub mod macos;
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
@@ -94,7 +116,10 @@ use crate::linux as native_mod;
 #[cfg(target_os = "macos")]
 use crate::macos as native_mod;
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(target_os = "windows")]
+use crate::windows as native_mod;
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 use unsupported as native_mod;
 
 /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
@@ -102,7 +127,11 @@ use unsupported as native_mod;
 pub type TargetSharedLibrary<'a> = native_mod::SharedLibrary<'a>;
 
 /// An indicator if this platform is supported.
-pub const TARGET_SUPPORTED: bool = cfg!(any(target_os = "macos", target_os = "linux"));
+pub const TARGET_SUPPORTED: bool = cfg!(any(
+    target_os = "macos",
+    target_os = "linux",
+    target_os = "windows"
+));
 
 macro_rules! simple_newtypes {
     (
@@ -242,6 +271,10 @@ pub enum SharedLibraryId {
     Uuid([u8; 16]),
     /// A GNU build ID
     GnuBuildId(Vec<u8>),
+    /// The PE timestamp and size
+    PeSignature(u32, u32),
+    /// A PDB GUID and age,
+    PdbSignature([u8; 16], u32),
 }
 
 impl SharedLibraryId {
@@ -249,22 +282,41 @@ impl SharedLibraryId {
     pub fn as_bytes(&self) -> &[u8] {
         match *self {
             SharedLibraryId::Uuid(ref bytes) => &*bytes,
-            SharedLibraryId::GnuBuildId(ref bytes) => &bytes,
+            SharedLibraryId::GnuBuildId(ref bytes) => bytes,
+            SharedLibraryId::PeSignature(_, _) => &[][..],
+            SharedLibraryId::PdbSignature(ref bytes, _) => &*bytes,
         }
     }
 }
 
 impl fmt::Display for SharedLibraryId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let (bytes, is_uuid): (&[u8], _) = match *self {
-            SharedLibraryId::Uuid(ref bytes) => (&*bytes, true),
-            SharedLibraryId::GnuBuildId(ref bytes) => (&bytes, false),
-        };
-        for (idx, byte) in bytes.iter().enumerate() {
-            if is_uuid && (idx == 4 || idx == 6 || idx == 8 || idx == 10) {
-                write!(f, "-")?;
+        match *self {
+            SharedLibraryId::Uuid(ref bytes) => {
+                for (idx, byte) in bytes.iter().enumerate() {
+                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
+                        write!(f, "-")?;
+                    }
+                    write!(f, "{:02x}", byte)?;
+                }
             }
-            write!(f, "{:02x}", byte)?;
+            SharedLibraryId::GnuBuildId(ref bytes) => {
+                for byte in bytes {
+                    write!(f, "{:02x}", byte)?;
+                }
+            }
+            SharedLibraryId::PeSignature(timestamp, size_of_image) => {
+                write!(f, "{:08X}{:x}", timestamp, size_of_image)?;
+            }
+            SharedLibraryId::PdbSignature(ref bytes, age) => {
+                for (idx, byte) in bytes.iter().enumerate() {
+                    if idx == 4 || idx == 6 || idx == 8 || idx == 10 {
+                        write!(f, "-")?;
+                    }
+                    write!(f, "{:02X}", byte)?;
+                }
+                write!(f, "{:x}", age)?;
+            }
         }
         Ok(())
     }
@@ -272,15 +324,13 @@ impl fmt::Display for SharedLibraryId {
 
 impl fmt::Debug for SharedLibraryId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SharedLibraryId::Uuid(..) => {
-                write!(f, "Uuid(\"{}\")", self)?;
-            }
-            SharedLibraryId::GnuBuildId(..) => {
-                write!(f, "GnuBuildId(\"{}\")", self)?;
-            }
-        }
-        Ok(())
+        let name = match *self {
+            SharedLibraryId::Uuid(..) => "Uuid",
+            SharedLibraryId::GnuBuildId(..) => "GnuBuildId",
+            SharedLibraryId::PeSignature(..) => "PeSignature",
+            SharedLibraryId::PdbSignature(..) => "PdbSignature",
+        };
+        write!(f, "{}(\"{}\")", name, self)
     }
 }
 
@@ -296,8 +346,18 @@ pub trait SharedLibrary: Sized + Debug {
     /// Get the name of this shared library.
     fn name(&self) -> &OsStr;
 
-    /// Get the debug-id of this shared library if available.
+    /// Get the name of the debug file with this shared library if there is one.
+    fn debug_name(&self) -> Option<&OsStr> {
+        None
+    }
+
+    /// Get the code-id of this shared library if available.
     fn id(&self) -> Option<SharedLibraryId>;
+
+    /// Get the debug-id of this shared library if available.
+    fn debug_id(&self) -> Option<SharedLibraryId> {
+        self.id()
+    }
 
     /// Returns the address of where the library is loaded into virtual
     /// memory.

@@ -38,6 +38,7 @@ These are the OSes that `findshlibs` currently supports:
 
 * Linux
 * macOS
+* Windows
 
 If a platform is not supported then a fallback implementation is used that
 does nothing.  To see if your platform does something at runtime the
