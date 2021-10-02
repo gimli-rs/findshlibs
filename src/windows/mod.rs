@@ -84,9 +84,7 @@ impl<'a> Iterator for SegmentIter<'a> {
     type Item = Segment<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.sections.next().map(|section| Segment {
-            section
-        })
+        self.sections.next().map(|section| Segment { section })
     }
 }
 
@@ -231,12 +229,8 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
     #[inline]
     fn debug_id(&self) -> Option<SharedLibraryId> {
-        self.codeview_record70().map(|codeview| {
-            SharedLibraryId::PdbSignature(
-                codeview.pdb_signature,
-                codeview.pdb_age,
-            )
-        })
+        self.codeview_record70()
+            .map(|codeview| SharedLibraryId::PdbSignature(codeview.pdb_signature, codeview.pdb_age))
     }
 
     fn segments(&self) -> Self::SegmentIter {
