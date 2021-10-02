@@ -1,6 +1,8 @@
 # `findshlibs`
 
-[![](https://img.shields.io/crates/v/findshlibs.svg) ![](https://img.shields.io/crates/d/findshlibs.png)](https://crates.io/crates/findshlibs) [![Build Status](https://travis-ci.org/gimli-rs/findshlibs.png?branch=master)](https://travis-ci.org/gimli-rs/findshlibs) [![Coverage Status](https://coveralls.io/repos/github/gimli-rs/findshlibs/badge.svg?branch=master)](https://coveralls.io/github/gimli-rs/findshlibs?branch=master)
+[![](https://img.shields.io/crates/v/findshlibs.svg)](https://crates.io/crates/findshlibs)
+[![](https://docs.rs/findshlibs/badge.svg)](https://docs.rs/findshlibs)
+[![Build Status](https://github.com/gimli-rs/findshlibs/workflows/CI/badge.svg)](https://github.com/gimli-rs/findshlibs/actions)
 
 Find the shared libraries loaded in the current process with a cross platform
 API.
