@@ -10,12 +10,6 @@ repository = "https://github.com/gimli-rs/findshlibs"
 version = "0.8.0"
 edition = "2018"
 
-[badges.coveralls]
-repository = "gimli-rs/findshlibs"
-
-[badges.travis-ci]
-repository = "gimli-rs/findshlibs"
-
 [dependencies]
 libc = "0.2.65"
 
