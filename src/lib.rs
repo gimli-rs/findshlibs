@@ -98,7 +98,10 @@
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(
+    target_os = "linux",
+    all(target_os = "android", feature = "dl_iterate_phdr")
+))]
 pub mod linux;
 
 #[cfg(target_os = "windows")]
@@ -110,7 +113,10 @@ use std::usize;
 
 pub mod unsupported;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(
+    target_os = "linux",
+    all(target_os = "android", feature = "dl_iterate_phdr")
+))]
 use crate::linux as native_mod;
 
 #[cfg(target_os = "macos")]
@@ -119,7 +125,12 @@ use crate::macos as native_mod;
 #[cfg(target_os = "windows")]
 use crate::windows as native_mod;
 
-#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "linux",
+    all(target_os = "android", feature = "dl_iterate_phdr"),
+    target_os = "windows"
+)))]
 use unsupported as native_mod;
 
 /// The [`SharedLibrary` trait](./trait.SharedLibrary.html)
@@ -130,6 +141,7 @@ pub type TargetSharedLibrary<'a> = native_mod::SharedLibrary<'a>;
 pub const TARGET_SUPPORTED: bool = cfg!(any(
     target_os = "macos",
     target_os = "linux",
+    all(target_os = "android", feature = "dl_iterate_phdr"),
     target_os = "windows"
 ));
 
