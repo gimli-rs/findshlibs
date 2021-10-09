@@ -464,11 +464,20 @@ mod tests {
             }
         });
 
-        assert!(names[0].contains("/findshlibs"));
+        #[cfg(target_os = "linux")]
+        {
+            assert!(names[0].contains("/findshlibs"));
+        }
+        #[cfg(target_os = "android")]
+        {
+            assert!(names[0].contains("/linker"));
+            assert!(names[1].contains("/findshlibs"));
+        }
         assert!(names.iter().any(|x| x.contains("libc.so")));
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn get_id() {
         use std::path::Path;
         use std::process::Command;
