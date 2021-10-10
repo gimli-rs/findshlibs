@@ -286,10 +286,10 @@ impl<'a> SharedLibrary<'a> {
         F: FnMut(&Self) -> C,
         C: Into<IterationControl>,
     {
-        #[cfg(target_os = "android")]
         if (*info).dlpi_phdr.is_null() {
             return CONTINUE;
         }
+
         let state = &mut *(state as *mut IterState<F>);
         state.idx += 1;
 
