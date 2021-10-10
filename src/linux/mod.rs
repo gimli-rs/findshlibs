@@ -286,6 +286,10 @@ impl<'a> SharedLibrary<'a> {
         F: FnMut(&Self) -> C,
         C: Into<IterationControl>,
     {
+        #[cfg(target_os = "android")]
+        if (*info).dlpi_phdr.is_null() {
+            return CONTINUE;
+        }
         let state = &mut *(state as *mut IterState<F>);
         state.idx += 1;
 
@@ -464,15 +468,7 @@ mod tests {
             }
         });
 
-        #[cfg(target_os = "linux")]
-        {
-            assert!(names[0].contains("/findshlibs"));
-        }
-        #[cfg(target_os = "android")]
-        {
-            assert!(names[0].contains("/linker"));
-            assert!(names[1].contains("/findshlibs"));
-        }
+        assert!(names.iter().any(|x| x.contains("findshlibs")));
         assert!(names.iter().any(|x| x.contains("libc.so")));
     }
 
