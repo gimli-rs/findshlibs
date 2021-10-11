@@ -27,6 +27,19 @@ type Phdr = libc::Elf32_Phdr;
 type Phdr = libc::Elf64_Phdr;
 
 const NT_GNU_BUILD_ID: u32 = 3;
+const PT_NULL: u32 = 0;
+const PT_LOAD: u32 = 1;
+const PT_DYNAMIC: u32 = 2;
+const PT_INTERP: u32 = 3;
+const PT_NOTE: u32 = 4;
+const PT_SHLIB: u32 = 5;
+const PT_PHDR: u32 = 6;
+const PT_TLS: u32 = 7;
+const PT_NUM: u32 = 8;
+const PT_LOOS: u32 = 0x60000000;
+const PT_GNU_EH_FRAME: u32 = 0x6474e550;
+const PT_GNU_STACK: u32 = 0x6474e551;
+const PT_GNU_RELRO: u32 = 0x6474e552;
 
 // Normally we would use `Elf32_Nhdr` on 32-bit platforms and `Elf64_Nhdr` on
 // 64-bit platforms. However, in practice it seems that only `Elf32_Nhdr` is
@@ -59,7 +72,7 @@ impl<'a> Segment<'a> {
     }
 
     fn is_note(&self) -> bool {
-        self.phdr().p_type == libc::PT_NOTE
+        self.phdr().p_type == PT_NOTE
     }
 
     /// Parse the contents of a `PT_NOTE` segment.
@@ -144,19 +157,19 @@ impl<'a> SegmentTrait for Segment<'a> {
     fn name(&self) -> &str {
         unsafe {
             match self.phdr.as_ref().unwrap().p_type {
-                libc::PT_NULL => "NULL",
-                libc::PT_LOAD => "LOAD",
-                libc::PT_DYNAMIC => "DYNAMIC",
-                libc::PT_INTERP => "INTERP",
-                libc::PT_NOTE => "NOTE",
-                libc::PT_SHLIB => "SHLI",
-                libc::PT_PHDR => "PHDR",
-                libc::PT_TLS => "TLS",
-                libc::PT_NUM => "NUM",
-                libc::PT_LOOS => "LOOS",
-                libc::PT_GNU_EH_FRAME => "GNU_EH_FRAME",
-                libc::PT_GNU_STACK => "GNU_STACK",
-                libc::PT_GNU_RELRO => "GNU_RELRO",
+                PT_NULL => "NULL",
+                PT_LOAD => "LOAD",
+                PT_DYNAMIC => "DYNAMIC",
+                PT_INTERP => "INTERP",
+                PT_NOTE => "NOTE",
+                PT_SHLIB => "SHLI",
+                PT_PHDR => "PHDR",
+                PT_TLS => "TLS",
+                PT_NUM => "NUM",
+                PT_LOOS => "LOOS",
+                PT_GNU_EH_FRAME => "GNU_EH_FRAME",
+                PT_GNU_STACK => "GNU_STACK",
+                PT_GNU_RELRO => "GNU_RELRO",
                 _ => "(unknown segment type)",
             }
         }
@@ -166,12 +179,12 @@ impl<'a> SegmentTrait for Segment<'a> {
     fn is_code(&self) -> bool {
         let hdr = self.phdr();
         // 0x1 is PT_X for executable
-        hdr.p_type == libc::PT_LOAD && (hdr.p_flags & 0x1) != 0
+        hdr.p_type == PT_LOAD && (hdr.p_flags & 0x1) != 0
     }
 
     #[inline]
     fn is_load(&self) -> bool {
-        self.phdr().p_type == libc::PT_LOAD
+        self.phdr().p_type == PT_LOAD
     }
 
     #[inline]
@@ -273,6 +286,10 @@ impl<'a> SharedLibrary<'a> {
         F: FnMut(&Self) -> C,
         C: Into<IterationControl>,
     {
+        if (*info).dlpi_phdr.is_null() {
+            return CONTINUE;
+        }
+
         let state = &mut *(state as *mut IterState<F>);
         state.idx += 1;
 
@@ -451,11 +468,12 @@ mod tests {
             }
         });
 
-        assert!(names[0].contains("/findshlibs"));
+        assert!(names.iter().any(|x| x.contains("findshlibs")));
         assert!(names.iter().any(|x| x.contains("libc.so")));
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn get_id() {
         use std::path::Path;
         use std::process::Command;
