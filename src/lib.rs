@@ -36,6 +36,8 @@
 //! * Linux
 //! * macOS
 //! * Windows
+//! * Android
+//! * iOS
 //!
 //! If a platform is not supported then a fallback implementation is used that
 //! does nothing.  To see if your platform does something at runtime the
@@ -95,7 +97,7 @@
 //! >   the case on windows where this will be the path to the PDB file.
 #![deny(missing_docs)]
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub mod macos;
 
 #[cfg(any(
@@ -119,7 +121,7 @@ pub mod unsupported;
 ))]
 use crate::linux as native_mod;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use crate::macos as native_mod;
 
 #[cfg(target_os = "windows")]
@@ -127,6 +129,7 @@ use crate::windows as native_mod;
 
 #[cfg(not(any(
     target_os = "macos",
+    target_os = "ios",
     target_os = "linux",
     all(target_os = "android", feature = "dl_iterate_phdr"),
     target_os = "windows"
@@ -140,6 +143,7 @@ pub type TargetSharedLibrary<'a> = native_mod::SharedLibrary<'a>;
 /// An indicator if this platform is supported.
 pub const TARGET_SUPPORTED: bool = cfg!(any(
     target_os = "macos",
+    target_os = "ios",
     target_os = "linux",
     all(target_os = "android", feature = "dl_iterate_phdr"),
     target_os = "windows"
