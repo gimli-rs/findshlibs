@@ -36,6 +36,7 @@
 //! * Linux
 //! * macOS
 //! * Windows
+//! * Android
 //!
 //! If a platform is not supported then a fallback implementation is used that
 //! does nothing.  To see if your platform does something at runtime the
