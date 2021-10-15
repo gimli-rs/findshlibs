@@ -121,7 +121,7 @@ pub mod unsupported;
 ))]
 use crate::linux as native_mod;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use crate::macos as native_mod;
 
 #[cfg(target_os = "windows")]
