@@ -97,7 +97,7 @@
 //! >   the case on windows where this will be the path to the PDB file.
 #![deny(missing_docs)]
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub mod macos;
 
 #[cfg(any(
