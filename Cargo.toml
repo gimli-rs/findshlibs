@@ -1,6 +1,6 @@
 [package]
 name = "findshlibs"
-version = "0.9.0"
+version = "0.10.0"
 description = "Find the set of shared libraries loaded in the current process with a cross platform API"
 documentation = "https://docs.rs/findshlibs"
 edition = "2018"
