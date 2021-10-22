@@ -287,10 +287,6 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
 
             if let Some(header) = unsafe { MachHeader::from_header_ptr(header) } {
                 assert!(
-                    slide != 0,
-                    "If we have a header pointer, slide should be valid"
-                );
-                assert!(
                     !name.is_null(),
                     "If we have a header pointer, name should be valid"
                 );
