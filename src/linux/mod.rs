@@ -17,6 +17,7 @@ use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::ffi::OsStringExt;
 use std::panic;
+use std::ptr;
 use std::slice;
 use std::usize;
 
@@ -88,17 +89,12 @@ impl<'a> Segment<'a> {
         &self,
         shlib: &SharedLibrary<'a>,
     ) -> impl Iterator<Item = (libc::Elf32_Word, &'a [u8], &'a [u8])> {
-        assert!(self.is_note());
-
+        let is_note = self.is_note();
         // `man 5 readelf` says that all of the `Nhdr`, name, and descriptor are
-        // always 4-byte aligned, but we copy this alignment behavior from
-        // `readelf` since that seems to match reality in practice.
-        let alignment = std::cmp::max(self.phdr().p_align as usize, 4);
+        // always 4-byte aligned, but in practice android set its `.note.android.ident`
+        // alignment to 2 on some versions, we'd better use alignment provided by elf.
+        let alignment = std::cmp::max(self.phdr().p_align as usize, 1);
         let align_up = move |data: &'a [u8]| {
-            if alignment != 4 && alignment != 8 {
-                return None;
-            }
-
             let ptr = data.as_ptr() as usize;
             let alignment_minus_one = alignment - 1;
             let aligned_ptr = ptr.checked_add(alignment_minus_one)? & !alignment_minus_one;
@@ -113,13 +109,15 @@ impl<'a> Segment<'a> {
         let mut data = self.data(shlib);
 
         iter::from_fn(move || {
-            assert_eq!(data.as_ptr() as usize % alignment, 0);
+            if !is_note {
+                return None;
+            }
 
             // Each entry in a `PT_NOTE` segment begins with a
             // fixed-size header `Nhdr`.
             let nhdr_size = mem::size_of::<Nhdr>();
             let nhdr = try_split_at(&mut data, nhdr_size)?;
-            let nhdr = (nhdr.as_ptr() as *const Nhdr).as_ref().unwrap();
+            let nhdr = ptr::read_unaligned(nhdr.as_ptr() as *const Nhdr);
 
             // No need to `align_up` after the `Nhdr`
             // It is followed by a name of size `n_namesz`.
