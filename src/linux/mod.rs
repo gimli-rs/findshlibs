@@ -88,8 +88,6 @@ impl<'a> Segment<'a> {
         &self,
         shlib: &SharedLibrary<'a>,
     ) -> impl Iterator<Item = (libc::Elf32_Word, &'a [u8], &'a [u8])> {
-        assert!(self.is_note());
-
         // `man 5 readelf` says that all of the `Nhdr`, name, and descriptor are
         // always 4-byte aligned, but we copy this alignment behavior from
         // `readelf` since that seems to match reality in practice.
@@ -113,7 +111,9 @@ impl<'a> Segment<'a> {
         let mut data = self.data(shlib);
 
         iter::from_fn(move || {
-            assert_eq!(data.as_ptr() as usize % alignment, 0);
+            if (data.as_ptr() as usize % alignment) != 0 {
+                return None;
+            }
 
             // Each entry in a `PT_NOTE` segment begins with a
             // fixed-size header `Nhdr`.
