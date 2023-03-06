@@ -4,7 +4,7 @@ use crate::Segment as SegmentTrait;
 use crate::SharedLibrary as SharedLibraryTrait;
 use crate::{Bias, IterationControl, SharedLibraryId, Svma};
 
-use std::ffi::{CStr, OsStr, OsString};
+use std::ffi::{c_char, CStr, OsStr, OsString};
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
@@ -13,19 +13,29 @@ use std::ptr;
 use std::slice;
 use std::usize;
 
-use winapi::ctypes::c_char;
-use winapi::shared::minwindef::{HMODULE, MAX_PATH};
-use winapi::um::libloaderapi::{FreeLibrary, LoadLibraryExW, LOAD_LIBRARY_AS_DATAFILE};
-use winapi::um::memoryapi::VirtualQuery;
-use winapi::um::processthreadsapi::GetCurrentProcess;
-use winapi::um::psapi::{
-    EnumProcessModules, GetModuleFileNameExW, GetModuleInformation, MODULEINFO,
-};
-use winapi::um::winnt::{
+use windows_sys::Win32::Foundation::{HINSTANCE, MAX_PATH};
+use windows_sys::Win32::System::Diagnostics::Debug::{
     IMAGE_DEBUG_DIRECTORY, IMAGE_DEBUG_TYPE_CODEVIEW, IMAGE_DIRECTORY_ENTRY_DEBUG,
-    IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_HEADERS, IMAGE_NT_SIGNATURE,
-    IMAGE_SCN_CNT_CODE, IMAGE_SECTION_HEADER, MEMORY_BASIC_INFORMATION, MEM_COMMIT,
+    IMAGE_SCN_CNT_CODE, IMAGE_SECTION_HEADER,
 };
+use windows_sys::Win32::System::LibraryLoader::{
+    FreeLibrary, LoadLibraryExW, LOAD_LIBRARY_AS_DATAFILE,
+};
+use windows_sys::Win32::System::Memory::{VirtualQuery, MEMORY_BASIC_INFORMATION, MEM_COMMIT};
+use windows_sys::Win32::System::ProcessStatus::{
+    K32EnumProcessModules, K32GetModuleFileNameExW, K32GetModuleInformation, MODULEINFO,
+};
+use windows_sys::Win32::System::SystemServices::{
+    IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE,
+};
+use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+#[allow(non_camel_case_types)]
+#[cfg(target_pointer_width = "64")]
+type IMAGE_NT_HEADERS = windows_sys::Win32::System::Diagnostics::Debug::IMAGE_NT_HEADERS64;
+#[allow(non_camel_case_types)]
+#[cfg(target_pointer_width = "32")]
+type IMAGE_NT_HEADERS = windows_sys::Win32::System::Diagnostics::Debug::IMAGE_NT_HEADERS32;
 
 // This is 'RSDS'.
 const CV_SIGNATURE: u32 = 0x5344_5352;
@@ -65,7 +75,7 @@ impl<'a> SegmentTrait for Segment<'a> {
 
     #[inline]
     fn len(&self) -> usize {
-        *unsafe { self.section.Misc.VirtualSize() } as usize
+        unsafe { self.section.Misc.VirtualSize as usize }
     }
 }
 
@@ -154,7 +164,7 @@ impl<'a> SharedLibrary<'a> {
 
     fn debug_directories(&self) -> &[IMAGE_DEBUG_DIRECTORY] {
         self.nt_headers().map_or(&[], |nt_headers| {
-            if nt_headers.OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG as u32 {
+            if nt_headers.OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG {
                 return &[];
             }
             let data_dir =
@@ -260,36 +270,35 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
         let proc = unsafe { GetCurrentProcess() };
         let mut modules_size = 0;
         unsafe {
-            if EnumProcessModules(proc, ptr::null_mut(), 0, &mut modules_size) == 0 {
+            if K32EnumProcessModules(proc, ptr::null_mut(), 0, &mut modules_size) == 0 {
                 return;
             }
         }
-        let module_count = modules_size / mem::size_of::<HMODULE>() as u32;
+        let module_count = modules_size / mem::size_of::<HINSTANCE>() as u32;
         let mut modules = vec![unsafe { mem::zeroed() }; module_count as usize];
         unsafe {
-            if EnumProcessModules(proc, modules.as_mut_ptr(), modules_size, &mut modules_size) == 0
+            if K32EnumProcessModules(proc, modules.as_mut_ptr(), modules_size, &mut modules_size)
+                == 0
             {
                 return;
             }
         }
 
-        modules.truncate(modules_size as usize / mem::size_of::<HMODULE>());
+        modules.truncate(modules_size as usize / mem::size_of::<HINSTANCE>());
 
         for module in modules {
             unsafe {
-                let mut module_path = vec![0u16; MAX_PATH + 1];
-                let module_path_len = GetModuleFileNameExW(
-                    proc,
-                    module,
-                    module_path.as_mut_ptr(),
-                    MAX_PATH as u32 + 1,
-                ) as usize;
+                // Cast: `MAX_PATH` fits in a u16, on Windows it'll always fit in a usize
+                let mut module_path = vec![0u16; MAX_PATH as usize + 1];
+                let module_path_len =
+                    K32GetModuleFileNameExW(proc, module, module_path.as_mut_ptr(), MAX_PATH + 1)
+                        as usize;
                 if module_path_len == 0 {
                     continue;
                 }
 
                 let mut module_info = mem::zeroed();
-                if GetModuleInformation(
+                if K32GetModuleInformation(
                     proc,
                     module,
                     &mut module_info,
@@ -305,7 +314,7 @@ impl<'a> SharedLibraryTrait for SharedLibrary<'a> {
                 // loaded before.
                 let handle_lock = LoadLibraryExW(
                     module_path.as_ptr(),
-                    ptr::null_mut(),
+                    Default::default(),
                     LOAD_LIBRARY_AS_DATAFILE,
                 );
 
