@@ -14,7 +14,7 @@ jobs:
         rust: ["stable", "beta", "nightly", "1.34.0"]
     runs-on: ${{matrix.os}}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Install rust
@@ -29,7 +29,7 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install rust
         run: |
           rustup install stable
@@ -40,5 +40,5 @@ jobs:
   doc:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: cargo doc
