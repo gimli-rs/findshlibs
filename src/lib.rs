@@ -258,7 +258,7 @@ pub trait Segment: Sized + Debug {
     fn actual_virtual_memory_address(&self, shlib: &Self::SharedLibrary) -> Avma {
         let svma = self.stated_virtual_memory_address();
         let bias = shlib.virtual_memory_bias();
-        Avma(svma.0 + bias.0)
+        Avma(svma.0.wrapping_add(bias.0))
     }
 
     /// Does this segment contain the given address?
