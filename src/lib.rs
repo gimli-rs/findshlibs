@@ -100,10 +100,7 @@
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub mod macos;
 
-#[cfg(any(
-    target_os = "linux",
-    all(target_os = "android", feature = "dl_iterate_phdr")
-))]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub mod linux;
 
 #[cfg(target_os = "windows")]
@@ -111,14 +108,10 @@ pub mod windows;
 
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
-use std::usize;
 
 pub mod unsupported;
 
-#[cfg(any(
-    target_os = "linux",
-    all(target_os = "android", feature = "dl_iterate_phdr")
-))]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 use crate::linux as native_mod;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -131,7 +124,7 @@ use crate::windows as native_mod;
     target_os = "macos",
     target_os = "ios",
     target_os = "linux",
-    all(target_os = "android", feature = "dl_iterate_phdr"),
+    target_os = "android",
     target_os = "windows"
 )))]
 use unsupported as native_mod;
@@ -145,7 +138,7 @@ pub const TARGET_SUPPORTED: bool = cfg!(any(
     target_os = "macos",
     target_os = "ios",
     target_os = "linux",
-    all(target_os = "android", feature = "dl_iterate_phdr"),
+    target_os = "android",
     target_os = "windows"
 ));
 

@@ -8,14 +8,10 @@ keywords = ["dyld", "dylib", "shared", "library", "dl_iterate_phdr"]
 license = "MIT OR Apache-2.0"
 readme = "./README.md"
 repository = "https://github.com/gimli-rs/findshlibs"
+rust-version = "1.82"
 
 [dependencies]
 libc = "0.2.104"
-
-[build-dependencies]
-# Only needed for Android, but cannot be target dependent
-# https://github.com/rust-lang/cargo/issues/4932
-cc = "1.0.67"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 lazy_static = "1.4"
