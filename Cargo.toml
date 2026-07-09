@@ -8,6 +8,7 @@ keywords = ["dyld", "dylib", "shared", "library", "dl_iterate_phdr"]
 license = "MIT OR Apache-2.0"
 readme = "./README.md"
 repository = "https://github.com/gimli-rs/findshlibs"
+rust-version = "1.63"
 
 [dependencies]
 libc = "0.2.104"
