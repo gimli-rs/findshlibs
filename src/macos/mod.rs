@@ -2,7 +2,6 @@
 //! trait](../trait.SharedLibrary.html).
 #![allow(clippy::cast_ptr_alignment)]
 
-use lazy_static::lazy_static;
 use libc;
 
 use crate::Segment as SegmentTrait;
@@ -26,15 +25,13 @@ struct uuid_command {
     uuid: [u8; 16usize],
 }
 
-lazy_static! {
-    /// A lock protecting dyld FFI calls.
-    ///
-    /// MacOS does not provide an atomic way to iterate shared libraries, so
-    /// *you* must take this lock whenever dynamically adding or removing shared
-    /// libraries to ensure that there are no races with iterating shared
-    /// libraries.
-    pub static ref DYLD_LOCK: Mutex<()> = Mutex::new(());
-}
+/// A lock protecting dyld FFI calls.
+///
+/// MacOS does not provide an atomic way to iterate shared libraries, so
+/// *you* must take this lock whenever dynamically adding or removing shared
+/// libraries to ensure that there are no races with iterating shared
+/// libraries.
+pub static DYLD_LOCK: Mutex<()> = Mutex::new(());
 
 /// A Mach-O segment.
 pub enum Segment<'a> {
